@@ -1,5 +1,6 @@
 
     let fullData = {}; let accuracyChartInstance = null; let statErrorChartInstance = null;
+    
     document.addEventListener("DOMContentLoaded", async () => {
         try {
             const response = await fetch("predictions.json");
@@ -7,26 +8,38 @@
             fullData = await response.json();
             document.getElementById("last-updated").textContent = new Date(fullData.lastUpdated).toLocaleString();
             
-            // NOTE: Add your season tab initialization back here if you use it
-            // initializeSeasonTab(); 
-            
+            initializeSeasonTab(); 
             initializeDailyTab();
-            document.getElementById('daily-games-container').addEventListener('click', e => {
-                if (e.target.classList.contains('grade-button')) {
-                    const gameId = e.target.dataset.gameId;
-                    const date = e.target.dataset.date;
-                    const gameData = fullData.dailyGamesByDate[date].find(g => g.gameId == gameId);
-                    if (gameData) showGradeOverlay(gameData);
-                }
-            });
-        } catch (e) { console.error("Failed to initialize:", e); }
+            
+        } catch (e) {
+            console.error("Failed to initialize:", e);
+            document.querySelector('main').innerHTML = `<div class="card" style="color: red;"><h2>Failed to Load Data</h2><p>Could not fetch or parse predictions.json. Please check the file and try again.</p><p>Error: ${e.message}</p></div>`;
+        }
     });
+
     function openTab(evt, tabName) {
         document.querySelectorAll(".tab-content").forEach(tc => tc.style.display = "none");
         document.querySelectorAll(".tab-link").forEach(tl => tl.classList.remove("active"));
         document.getElementById(tabName).style.display = "block";
         evt.currentTarget.classList.add("active");
     }
+
+    // --- SEASON TAB ---
+    function initializeSeasonTab() {
+        const container = document.getElementById('season-table-container');
+        const controls = document.getElementById('season-controls');
+        if (!fullData.seasonLongProjections || fullData.seasonLongProjections.length === 0) {
+            controls.style.display = 'none';
+            container.innerHTML = '<p>No season-long projections available.</p>';
+            return;
+        }
+        // If you want to add back the full season-long functionality,
+        // the original JS for that can be pasted here. For now, this just
+        // confirms the data loaded.
+        container.innerHTML = `<p>Successfully loaded ${fullData.seasonLongProjections.length} season-long player projections.</p>`;
+    }
+
+    // --- DAILY TAB ---
     function initializeDailyTab() {
         renderAccuracyChart();
         const dates = Object.keys(fullData.dailyGamesByDate || {}).sort((a, b) => new Date(b) - new Date(a));
@@ -44,8 +57,23 @@
                 renderDailyGamesForDate(target.dataset.date);
             }
         });
+        document.getElementById('daily-games-container').addEventListener('click', e => {
+            if (e.target.classList.contains('grade-button')) {
+                const gameId = e.target.dataset.gameId;
+                const date = e.target.dataset.date;
+                const gameData = fullData.dailyGamesByDate[date].find(g => g.gameId == gameId);
+                if (gameData) showGradeOverlay(gameData);
+            }
+        });
         renderDailyGamesForDate(dates[0]);
     }
+
+    function renderAccuracyChart() { /* ... unchanged ... */ }
+    function renderDailyGamesForDate(date) { /* ... unchanged ... */ }
+    function showGradeOverlay(game) { /* ... unchanged ... */ }
+    function renderStatErrorChart(errors) { /* ... unchanged ... */ }
+    
+    // (Pasting the full functions for completeness)
     function renderAccuracyChart() {
         const container = document.getElementById('accuracy-chart-container');
         if (!fullData.historicalGrades || fullData.historicalGrades.length < 2) { container.style.display = 'none'; return; }
