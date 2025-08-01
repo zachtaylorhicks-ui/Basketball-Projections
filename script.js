@@ -1,9 +1,26 @@
 
-    let fullData = {}; let processedSeasonData = [];
+    let fullData = {};
+    let processedSeasonData = [];
     let currentSort = { column: "custom_z_score", direction: "desc" };
-    let accuracyChartInstance = null; let statErrorChartInstance = null;
+    let accuracyChartInstance = null;
+    let statErrorChartInstance = null;
+    
+    // Admin Panel State
+    let defaultSeasonProjections = [];
+    let customProjectionA = null;
+    let customProjectionB = null;
 
-    const STAT_CONFIG={points:{name:"PTS",zKey:"z_points"},reboundsTotal:{name:"REB",zKey:"z_reboundsTotal"},assists:{name:"AST",zKey:"z_assists"},steals:{name:"STL",zKey:"z_steals"},blocks:{name:"BLK",zKey:"z_blocks"},threePointersMade:{name:"3PM",zKey:"z_threePointersMade"},turnovers:{name:"TO",zKey:"z_turnovers",invert:true},FG_impact:{name:"FG% Impact",dataKey:"FG%",zKey:"z_FG_impact"},FT_impact:{name:"FT% Impact",dataKey:"FT%",zKey:"z_FT_impact"}};
+    const STAT_CONFIG = {
+        points: { name: "PTS", zKey: "z_points" },
+        reboundsTotal: { name: "REB", zKey: "z_reboundsTotal" },
+        assists: { name: "AST", zKey: "z_assists" },
+        steals: { name: "STL", zKey: "z_steals" },
+        blocks: { name: "BLK", zKey: "z_blocks" },
+        threePointersMade: { name: "3PM", zKey: "z_threePointersMade" },
+        turnovers: { name: "TO", zKey: "z_turnovers", invert: true },
+        FG_impact: { name: "FG% Impact", dataKey: "FG%", zKey: "z_FG_impact" },
+        FT_impact: { name: "FT% Impact", dataKey: "FT%", zKey: "z_FT_impact" },
+    };
 
     document.addEventListener("DOMContentLoaded", async () => {
         try {
@@ -11,7 +28,13 @@
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             fullData = await response.json();
             document.getElementById("last-updated").textContent = new Date(fullData.lastUpdated).toLocaleString();
-            initializeSeasonTab(); 
+            
+            const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true';
+            if (isAdmin) {
+                initializeAdminPanel();
+            }
+
+            initializeSeasonTab();
             initializeDailyTab();
         } catch (e) {
             console.error("Failed to initialize:", e);
@@ -24,10 +47,124 @@
         document.querySelectorAll(".tab-link").forEach(tl => tl.classList.remove("active"));
         document.getElementById(tabName).style.display = "block";
         evt.currentTarget.classList.add("active");
+        if (tabName === 'Daily') {
+             document.body.classList.remove('show-advanced'); // Reset advanced view
+        }
+    }
+    
+    // --- ADMIN PANEL ---
+    function initializeAdminPanel() {
+        document.getElementById('admin-panel').style.display = 'block';
+        document.getElementById('csv-file-a').addEventListener('change', (e) => handleFileUpload(e, 'A'));
+        document.getElementById('csv-file-b').addEventListener('change', (e) => handleFileUpload(e, 'B'));
+        document.getElementById('projection-source-selector').addEventListener('change', updateProjectionSource);
+    }
+    
+    function handleFileUpload(event, source) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const csvText = e.target.result;
+            try {
+                const parsedData = parseCSV(csvText);
+                const statusEl = document.getElementById(`file-${source.toLowerCase()}-status`);
+                const optionEl = document.querySelector(`#projection-source-selector option[value="source_${source.toLowerCase()}"]`);
+
+                if (source === 'A') {
+                    customProjectionA = parsedData;
+                } else {
+                    customProjectionB = parsedData;
+                }
+                
+                statusEl.textContent = `${file.name} (${parsedData.length} players)`;
+                statusEl.classList.add('loaded');
+                optionEl.disabled = false;
+                
+                const avgOption = document.querySelector('#projection-source-selector option[value="average"]');
+                if(customProjectionA && customProjectionB) {
+                    avgOption.disabled = false;
+                }
+
+                // Auto-switch to the newly uploaded file
+                document.getElementById('projection-source-selector').value = `source_${source.toLowerCase()}`;
+                updateProjectionSource();
+
+            } catch (error) {
+                alert(`Error parsing CSV file: ${error.message}`);
+                console.error(error);
+            }
+        };
+        reader.readAsText(file);
     }
 
+    function parseCSV(text) {
+        const lines = text.split(/\r\n|\n/);
+        const headers = lines[0].split(',').map(h => h.trim());
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+            if (!lines[i]) continue;
+            const values = lines[i].split(',');
+            const entry = {};
+            headers.forEach((header, index) => {
+                const value = values[index] ? values[index].trim() : '';
+                entry[header] = isNaN(value) || value === '' ? value : parseFloat(value);
+            });
+            data.push(entry);
+        }
+        return data;
+    }
+
+    function updateProjectionSource() {
+        const selected = document.getElementById('projection-source-selector').value;
+        switch(selected) {
+            case 'source_a':
+                if (customProjectionA) fullData.seasonLongProjections = customProjectionA;
+                break;
+            case 'source_b':
+                if (customProjectionB) fullData.seasonLongProjections = customProjectionB;
+                break;
+            case 'average':
+                if (customProjectionA && customProjectionB) {
+                    fullData.seasonLongProjections = averageProjections(customProjectionA, customProjectionB);
+                }
+                break;
+            default: // 'default'
+                fullData.seasonLongProjections = [...defaultSeasonProjections];
+                break;
+        }
+        recalculateAndRenderSeason();
+    }
+    
+    function averageProjections(projA, projB) {
+        const mapA = new Map(projA.map(p => [p.playerName, p]));
+        const averaged = [];
+        const numericKeys = Object.values(STAT_CONFIG).flatMap(v => [v.dataKey, v.zKey, v.name.toLowerCase(), 'GP', 'minutes', 'turnovers', 'points', 'reboundsTotal', 'assists', 'steals', 'blocks', 'threePointersMade']).filter(Boolean);
+
+        for (const playerB of projB) {
+            const playerA = mapA.get(playerB.playerName);
+            if (playerA) {
+                const avgPlayer = { ...playerA }; // Start with playerA structure
+                for (const key of numericKeys) {
+                    if (typeof playerA[key] === 'number' && typeof playerB[key] === 'number') {
+                        avgPlayer[key] = (playerA[key] + playerB[key]) / 2;
+                    }
+                }
+                averaged.push(avgPlayer);
+                mapA.delete(playerB.playerName); // Remove from map so we can add remaining players later
+            } else {
+                averaged.push(playerB); // Player only in B
+            }
+        }
+        // Add players that were only in A
+        averaged.push(...Array.from(mapA.values()));
+        return averaged;
+    }
+
+
     // --- SEASON TAB ---
-    function initializeSeasonTab(){if(!fullData.seasonLongProjections||0===fullData.seasonLongProjections.length)return document.getElementById("loading-message").textContent="No season-long projections available.",void(document.getElementById("season-controls").style.display="none");document.getElementById("season-controls").style.display="block",setupSeasonControls(),addSeasonEventListeners(),recalculateAndRenderSeason(),document.getElementById("loading-message").style.display="none",document.getElementById("predictions-table").style.display="table"}
+    function initializeSeasonTab(){if(!fullData.seasonLongProjections||0===fullData.seasonLongProjections.length)return document.getElementById("loading-message").textContent="No season-long projections available.",void(document.getElementById("season-controls").style.display="none");defaultSeasonProjections=[...fullData.seasonLongProjections],document.getElementById("season-controls").style.display="block",setupSeasonControls(),addSeasonEventListeners(),recalculateAndRenderSeason(),document.getElementById("loading-message").style.display="none",document.getElementById("predictions-table").style.display="table"}
     function setupSeasonControls(){const e=document.getElementById("category-weights-grid");e.innerHTML=Object.entries(STAT_CONFIG).map(([t,n])=>`<div class=category-item id=cat-item-${t}><label for=cb-${t}><input type=checkbox id=cb-${t} data-key=${t} checked> ${n.name}</label></div>`).join("")}
     function addSeasonEventListeners(){document.getElementById("season-controls").addEventListener("change",recalculateAndRenderSeason),document.getElementById("search-player").addEventListener("input",recalculateAndRenderSeason),document.getElementById("predictions-thead").addEventListener("click",handleSortSeason)}
     function recalculateAndRenderSeason(){const e=getSeasonControlSettings();processedSeasonData=fullData.seasonLongProjections.map(t=>{let n=0;return e.activeCategories.forEach(e=>{const o=STAT_CONFIG[e];let a=t[o.zKey]||0;o.invert&&(a*=-1),n+=a}),{...t,custom_z_score:n}}),e.searchTerm&&(processedSeasonData=processedSeasonData.filter(t=>t.playerName.toLowerCase().includes(e.searchTerm))),sortSeasonData(),renderSeasonTable()}
@@ -40,9 +177,10 @@
     function getZScoreClass(e){return null==e?"average":e>=1.75?"elite":e>=1.25?"very-good":e>=.75?"good":e<=-1.25?"not-good":e<=-.75?"below-average":"average"}
     
     // --- DAILY TAB ---
-    function initializeDailyTab(){renderAccuracyChart();const e=Object.keys(fullData.dailyGamesByDate||{}).sort((e,t)=>new Date(t)-new Date(e)),t=document.getElementById("daily-date-tabs");if(0===e.length)return void(document.getElementById("daily-games-container").innerHTML='<div class="card"><p>No daily predictions available.</p></div>');t.innerHTML=e.map((t,n)=>`<button class="date-tab ${0===n?"active":""}" data-date="${t}">${new Date(t+"T00:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</button>`).join(""),t.addEventListener("click",(e=>{const t=e.target.closest(".date-tab");t&&(document.querySelectorAll(".date-tab").forEach((e=>e.classList.remove("active"))),t.classList.add("active"),renderDailyGamesForDate(t.dataset.date))})),document.getElementById("daily-games-container").addEventListener("click",(e=>{if(e.target.classList.contains("grade-button")){const t=e.target.dataset.gameId,n=e.target.dataset.date,o=fullData.dailyGamesByDate[n].find((e=>e.gameId==t));o&&showGradeOverlay(o)}})),renderDailyGamesForDate(e[0])}
+    function initializeDailyTab(){renderAccuracyChart();const e=document.getElementById("daily-games-container"),t=Object.keys(fullData.dailyGamesByDate||{}).sort((e,t)=>new Date(t)-new Date(e)),n=document.getElementById("daily-date-tabs");if(0===t.length)return void(e.innerHTML='<div class="card"><p>No daily predictions available.</p></div>');n.innerHTML=t.map((e,t)=>`<button class="date-tab ${0===t?"active":""}" data-date="${e}">${new Date(e+"T00:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</button>`).join(""),n.addEventListener("click",(e=>{const t=e.target.closest(".date-tab");t&&(document.querySelectorAll(".date-tab").forEach((e=>e.classList.remove("active"))),t.classList.add("active"),renderDailyGamesForDate(t.dataset.date))})),e.addEventListener("click",(e=>{if(e.target.classList.contains("grade-button")){const t=e.target.dataset.gameId,n=e.target.dataset.date,o=fullData.dailyGamesByDate[n].find((e=>e.gameId==t));o&&showGradeOverlay(o)}})),document.getElementById("toggle-advanced-stats").addEventListener("click",(()=>{e.classList.toggle("show-advanced")})),renderDailyGamesForDate(t[0])}
     function renderAccuracyChart(){const e=document.getElementById("accuracy-chart-container");if(!fullData.historicalGrades||fullData.historicalGrades.length<2)return void(e.style.display="none");e.style.display="block";const t=document.getElementById("accuracy-chart").getContext("2d"),n=fullData.historicalGrades.map((e=>new Date(e.date+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}))),o=fullData.historicalGrades.map((e=>e.overallMAEPts));accuracyChartInstance&&accuracyChartInstance.destroy(),accuracyChartInstance=new Chart(t,{type:"line",data:{labels:n,datasets:[{label:"Average Points MAE",data:o,borderColor:"rgb(0, 123, 255)",tension:.1,backgroundColor:"rgba(0, 123, 255, 0.1)",fill:!0}]},options:{scales:{y:{reverse:!0,title:{display:!0,text:"Prediction Error (Lower is Better)"}}}}})}
-    function renderDailyGamesForDate(e){const t=document.getElementById("daily-games-container");t.innerHTML="";const n=fullData.dailyGamesByDate[e];n.forEach((e=>{const n=document.createElement("div");n.className="matchup-card";const[o,a]=e.projections,s=e.grade.isGraded?`<button class="grade-button" data-game-id="${e.gameId}" data-date="${e}">View Prediction Grade</button>`:"";n.innerHTML=`<div class="matchup-header"><span>${o.teamName} (${o.winProb}%)</span><span>vs</span><span>(${a.winProb}%) ${a.teamName}</span>${s}</div>`,t.appendChild(n)}))}
+    function renderDailyGamesForDate(e){const t=document.getElementById("daily-games-container");t.innerHTML="",(fullData.dailyGamesByDate[e]||[]).forEach((n=>{const o=document.createElement("div");o.className="matchup-card";const[a,s]=n.projections,r=n.grade&&n.grade.isGraded?`<button class="grade-button" data-game-id="${n.gameId}" data-date="${e}">View Prediction Grade</button>`:"";o.innerHTML=`<div class="matchup-header"><span>${a.teamName} (${a.winProb}%)</span><span>vs</span><span>(${s.winProb}%) ${s.teamName}</span>${r}</div><div class="matchup-body">${createTeamTableHTML(a)}${createTeamTableHTML(s)}</div>`,t.appendChild(o)}))}
+    function createTeamTableHTML(e){let t=`<div class="team-box-score"><div class="team-header"><h3>${e.teamName}</h3><div class="team-total">Projected Score: <strong>${e.totalPoints}</strong></div></div><table class="daily-table"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th class="advanced-stat">FGM</th><th class="advanced-stat">FGA</th><th class="advanced-stat">3PM</th><th class="advanced-stat">FTM</th><th class="advanced-stat">FTA</th><th class="advanced-stat">TOV</th><th class="advanced-stat">FP</th></tr></thead><tbody>`;return e.players.sort(((e,t)=>t.Predicted_Minutes-e.Predicted_Minutes)).forEach((e=>{t+=`<tr><td>${e.Player_Name}</td><td>${(e.Predicted_Minutes||0).toFixed(1)}</td><td>${(e.points||0).toFixed(1)}</td><td>${(e.reb||0).toFixed(1)}</td><td>${(e.ast||0).toFixed(1)}</td><td>${(e.stl||0).toFixed(1)}</td><td>${(e.blk||0).toFixed(1)}</td><td class="advanced-stat">${(e.fgm||0).toFixed(1)}</td><td class="advanced-stat">${(e.fga||0).toFixed(1)}</td><td class="advanced-stat">${(e.three_pm||0).toFixed(1)}</td><td class="advanced-stat">${(e.ftm||0).toFixed(1)}</td><td class="advanced-stat">${(e.fta||0).toFixed(1)}</td><td class="advanced-stat">${(e.tov||0).toFixed(1)}</td><td class="advanced-stat">${(e.fp||0).toFixed(1)}</td></tr>`})),t+="</tbody></table></div>",t}
     function showGradeOverlay(e){const t=e.grade,n=document.getElementById("grade-overlay"),o=document.getElementById("grade-modal-content"),[a,s]=Object.keys(t.gameSummary.predicted),r=e=>`<li class="player-grade-item"><div class="player-name">${e.playerName}</div><div class="stats-comparison"><table><thead><tr><th></th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody><tr><td>Predicted</td><td class="predicted">${e.predicted.PTS.toFixed(1)}</td><td class="predicted">${e.predicted.REB.toFixed(1)}</td><td class="predicted">${e.predicted.AST.toFixed(1)}</td></tr><tr><td>Actual</td><td>${e.actual.PTS.toFixed(1)}</td><td>${e.actual.REB.toFixed(1)}</td><td>${e.actual.AST.toFixed(1)}</td></tr></tbody></table></div></li>`;o.innerHTML=`<div class="grade-modal"><div class="modal-header"><h2>Prediction Grade</h2><span class="grade-badge grade-${t.overallGrade.replace("+","-plus")}">${t.overallGrade}</span><button class="modal-close">×</button></div><div class="modal-section scoreboard"><div class="team-name">${a}</div><div>vs</div><div class="team-name">${s}</div><div>Predicted: <span class="score">${t.gameSummary.predicted[a]}</span></div><div></div><div>Predicted: <span class="score">${t.gameSummary.predicted[s]}</span></div><div>Actual: <span class="score">${t.gameSummary.actual[a]}</span></div><div></div><div>Actual: <span class="score">${t.gameSummary.actual[s]}</span></div></div><div class="modal-section shining-stars"><h3>⭐ Shining Stars (Most Accurate)</h3><ul class="player-grade-list">${t.shiningStars.map(r).join("")}</ul></div><div class="modal-section tough-calls"><h3>🔬 Tough Calls (Largest Misses)</h3><ul class="player-grade-list">${t.toughCalls.map(r).join("")}</ul></div><div class="modal-section"><h3>Stat Accuracy Deep Dive (Avg. Error)</h3><canvas id="stat-error-chart"></canvas></div></div>`,n.classList.remove("overlay-hidden"),n.classList.add("visible"),n.querySelector(".modal-close").addEventListener("click",(()=>{n.classList.remove("visible"),o.innerHTML=""})),n.addEventListener("click",(e=>{e.target===n&&(n.classList.remove("visible"),o.innerHTML="")})),renderStatErrorChart(t.statErrors)}
     function renderStatErrorChart(e){const t=document.getElementById("stat-error-chart").getContext("2d");statErrorChartInstance&&statErrorChartInstance.destroy(),statErrorChartInstance=new Chart(t,{type:"bar",data:{labels:Object.keys(e),datasets:[{label:"Average Error",data:Object.values(e),backgroundColor:"rgba(255, 99, 132, 0.2)",borderColor:"rgba(255, 99, 132, 1)",borderWidth:1}]},options:{indexAxis:"y",plugins:{legend:{display:!1}},scales:{x:{title:{display:!0,text:"Average Error"}}}}})}
     
