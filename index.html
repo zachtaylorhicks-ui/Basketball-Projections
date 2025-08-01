@@ -4,70 +4,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Basketball Projections</title>
+    <title>Advanced NBA Fantasy Projections</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <h1>Advanced Basketball Projections</h1>
-        <p>Your interactive source for NBA fantasy predictions.</p>
-        <p>Last Updated: <span id="last-updated">Loading...</span></p>
+        <h1>Advanced NBA Fantasy Projections</h1>
+        <p class="last-updated-text">Last Updated: <span id="last-updated">Loading...</span></p>
     </header>
 
+    <div class="tabs">
+        <button class="tab-link active" onclick="openTab(event, 'Season')">Season-Long Rankings</button>
+        <button class="tab-link" onclick="openTab(event, 'Daily')">Daily Game Projections</button>
+    </div>
+
     <main>
-        <!-- Season-Long Projections Section -->
-        <section class="card">
-            <h2>Season-Long Fantasy Rankings</h2>
-            <div class="controls">
-                <label for="stat-filter">Exclude categories from Z-Score Rank:</label>
-                <select id="stat-filter" multiple>
-                    <option value="points">Points</option>
-                    <option value="reboundsTotal">Rebounds</option>
-                    <option value="assists">Assists</option>
-                    <option value="steals">Steals</option>
-                    <option value="blocks">Blocks</option>
-                    <option value="threePointersMade">3-Pointers Made</option>
-                    <option value="turnovers">Turnovers</option>
-                    <option value="FG_impact">FG% Impact</option>
-                    <option value="FT_impact">FT% Impact</option>
-                </select>
+        <!-- Season-Long Projections Tab -->
+        <div id="Season" class="tab-content active">
+            <div class="controls-card">
+                <div class="top-filters">
+                    <div class="filter-group">
+                        <label>SHOW</label>
+                        <select id="show-count">
+                            <option value="50">Top 50</option>
+                            <option value="100">Top 100</option>
+                            <option value="200" selected>Top 200</option>
+                            <option value="9999">All</option>
+                        </select>
+                    </div>
+                    <div class="filter-group search-group">
+                        <label>SEARCH PLAYER</label>
+                        <input type="text" id="search-player" placeholder="e.g., Nikola Jokic">
+                    </div>
+                </div>
+                <div class="category-weights-grid" id="category-weights-grid">
+                    <!-- Category weights dynamically inserted here -->
+                </div>
+                <div class="color-guide-container">
+                    <strong>Color Guide:</strong>
+                    <div class="color-guide">
+                        <span class="guide-item elite">Elite</span><span class="guide-item very-good">Very Good</span><span class="guide-item good">Good</span>
+                        <span class="guide-item average">Average</span><span class="guide-item below-average">Below Avg</span><span class="guide-item not-good">Not Good</span>
+                    </div>
+                </div>
             </div>
-            <div class="table-container">
+            <div class="table-container card">
                 <table id="predictions-table">
-                    <thead>
-                        <tr>
-                            <th data-sort="rank">Rank <span></span></th>
-                            <th data-sort="playerName">Player <span></span></th>
-                            <th data-sort="points">PTS <span></span></th>
-                            <th data-sort="reboundsTotal">REB <span></span></th>
-                            <th data-sort="assists">AST <span></span></th>
-                            <th data-sort="steals">STL <span></span></th>
-                            <th data-sort="blocks">BLK <span></span></th>
-                            <th data-sort="threePointersMade">3PM <span></span></th>
-                            <th data-sort="turnovers">TO <span></span></th>
-                            <th data-sort="combined_z_score">Z-Score <span></span></th>
-                        </tr>
-                    </thead>
-                    <tbody id="predictions-tbody">
-                        <!-- Player data will be inserted by JavaScript -->
-                    </tbody>
+                    <thead id="predictions-thead"></thead>
+                    <tbody id="predictions-tbody"></tbody>
                 </table>
             </div>
-        </section>
+        </div>
 
-        <!-- Daily Game Predictions Section -->
-        <section class="card">
-            <h2>Daily Game Projections</h2>
+        <!-- Daily Game Projections Tab -->
+        <div id="Daily" class="tab-content">
             <div id="daily-games-container">
-                <!-- Daily game cards will be inserted by JavaScript -->
+                <!-- Daily game cards dynamically inserted here -->
             </div>
-        </section>
+        </div>
     </main>
 
-    <footer>
-        <p>© 2024 Your Website Name</p>
-    </footer>
-
+    <footer><p>© 2024 Your Fantasy Tool</p></footer>
     <script src="script.js"></script>
 </body>
 </html>
