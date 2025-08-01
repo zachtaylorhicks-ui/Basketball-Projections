@@ -1,107 +1,221 @@
 
+:root {
+    --primary-color: #1a73e8;
+    --background-color: #f8f9fa;
+    --card-background: #ffffff;
+    --text-color: #202124;
+    --text-muted: #5f6368;
+    --border-color: #dadce0;
+    --header-bg: #ffffff;
+    --header-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.6;
-    background-color: #f4f7f6;
-    color: #333;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
     margin: 0;
-    padding: 10px;
+    line-height: 1.6;
 }
-header, footer {
-    text-align: center;
-    max-width: 1200px;
-    margin: 20px auto;
+
+header {
+    background-color: var(--header-bg);
+    padding: 15px 30px;
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: var(--header-shadow);
 }
-main {
-    max-width: 1200px;
-    margin: 20px auto;
+
+.header-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
-.card {
-    background-color: #fff;
-    border: 1px solid #e0e0e0;
+
+header h1 {
+    margin: 0;
+    font-size: 1.5em;
+    font-weight: 600;
+}
+
+header nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 8px 16px;
+    margin-left: 10px;
     border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-    margin-bottom: 30px;
-    padding: 20px;
+    font-weight: 500;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
 }
-h1 { color: #1a1a1a; }
-h2 {
-    color: #333;
-    border-bottom: 2px solid #007bff;
-    padding-bottom: 10px;
+
+header nav a:hover {
+    background-color: #e8f0fe;
+    color: var(--primary-color);
+}
+
+header nav a.active {
+    background-color: #e8f0fe;
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.last-updated-text {
+    max-width: 1600px;
+    margin: 5px auto 0;
+    color: var(--text-muted);
+    font-size: 0.85em;
+    text-align: left;
+}
+
+
+main {
+    max-width: 1600px;
+    margin: 25px auto;
+    padding: 0 30px;
+}
+
+.card {
+    background-color: var(--card-background);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 25px;
+}
+
+.controls-card {
+    margin-bottom: 25px;
+}
+
+.controls-card h3 {
     margin-top: 0;
+    font-size: 1.25em;
 }
-.controls {
-    margin-bottom: 20px;
-    background-color: #f8f9fa;
-    padding: 15px;
-    border-radius: 6px;
-    border: 1px solid #dee2e6;
+
+.checkbox-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
 }
-#stat-filter { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
-.table-container { overflow-x: auto; }
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.checkbox-item input {
+    margin-right: 8px;
+    accent-color: var(--primary-color);
+}
+
+.table-container {
+    overflow-x: auto;
+    max-height: 80vh; /* Make table scrollable vertically */
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
-    font-size: 0.9em;
+    font-size: 14px;
 }
+
 th, td {
-    padding: 10px 12px;
+    padding: 12px 15px;
     text-align: left;
-    border-bottom: 1px solid #ddd;
-    vertical-align: top;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
 }
-th {
-    background-color: #007bff;
-    color: white;
+
+thead th {
+    background-color: #f8f9fa;
+    font-weight: 600;
     cursor: pointer;
-    position: relative;
+    position: sticky; /* Sticky header */
+    top: 0;
+    z-index: 10;
 }
-th span {
+
+th .sort-indicator {
     display: inline-block;
-    width: 15px;
-    text-align: right;
+    width: 1em;
+    text-align: left;
+    margin-left: 5px;
+    color: #999;
 }
-tbody tr:nth-child(even) { background-color: #f9f9f9; }
-tbody tr:hover { background-color: #f1f1f1; }
+
+tbody tr:hover {
+    background-color: #f1f5f8;
+}
+
+.stat-cell div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.stat-value {
+    font-weight: 500;
+}
+
 .z-score {
-    font-size: 0.8em;
-    font-style: italic;
-    display: block;
-    margin-top: 2px;
-    padding: 2px 4px;
-    border-radius: 3px;
-    color: #fff;
-    text-align: center;
-}
-.game-card {
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    overflow: hidden;
-}
-.game-card-header {
-    background-color: #343a40;
+    font-size: 11px;
+    margin-top: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
     color: white;
-    padding: 10px 15px;
-    font-weight: bold;
+    min-width: 35px;
+    text-align: center;
+    font-weight: 600;
 }
+
+#daily-games-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 25px;
+}
+
+.game-card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background-color: var(--card-background);
+    overflow: hidden;
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.1);
+}
+
+.game-card-header {
+    background-color: #f1f3f4;
+    color: var(--text-color);
+    padding: 12px 15px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+}
+
 .team-prediction-container {
     padding: 15px;
 }
-.team-prediction-container h3 {
-    margin-top: 0;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 5px;
+
+.team-prediction-container:not(:last-child) {
+    border-bottom: 1px solid #e8eaed;
 }
+
+.team-prediction-container h3 {
+    margin: 0 0 12px 0;
+    font-size: 1.1em;
+}
+
 .daily-table {
-    font-size: 0.85em;
-    width: 100%;
-    border-collapse: collapse;
+    font-size: 13px;
 }
 .daily-table th, .daily-table td {
-    padding: 5px;
-    border: 1px solid #eee;
+    padding: 6px 8px;
 }
-.daily-table th { background-color: #f8f9fa; color: #333; }
+
+footer {
+    text-align: center;
+    margin: 40px 0 20px 0;
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
