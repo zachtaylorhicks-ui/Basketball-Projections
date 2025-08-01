@@ -1,0 +1,73 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Basketball Projections</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Advanced Basketball Projections</h1>
+        <p>Your interactive source for NBA fantasy predictions.</p>
+        <p>Last Updated: <span id="last-updated">Loading...</span></p>
+    </header>
+
+    <main>
+        <!-- Season-Long Projections Section -->
+        <section class="card">
+            <h2>Season-Long Fantasy Rankings</h2>
+            <div class="controls">
+                <label for="stat-filter">Exclude categories from Z-Score Rank:</label>
+                <select id="stat-filter" multiple>
+                    <option value="points">Points</option>
+                    <option value="reboundsTotal">Rebounds</option>
+                    <option value="assists">Assists</option>
+                    <option value="steals">Steals</option>
+                    <option value="blocks">Blocks</option>
+                    <option value="threePointersMade">3-Pointers Made</option>
+                    <option value="turnovers">Turnovers</option>
+                    <option value="FG_impact">FG% Impact</option>
+                    <option value="FT_impact">FT% Impact</option>
+                </select>
+            </div>
+            <div class="table-container">
+                <table id="predictions-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="rank">Rank <span></span></th>
+                            <th data-sort="playerName">Player <span></span></th>
+                            <th data-sort="points">PTS <span></span></th>
+                            <th data-sort="reboundsTotal">REB <span></span></th>
+                            <th data-sort="assists">AST <span></span></th>
+                            <th data-sort="steals">STL <span></span></th>
+                            <th data-sort="blocks">BLK <span></span></th>
+                            <th data-sort="threePointersMade">3PM <span></span></th>
+                            <th data-sort="turnovers">TO <span></span></th>
+                            <th data-sort="combined_z_score">Z-Score <span></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="predictions-tbody">
+                        <!-- Player data will be inserted by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Daily Game Predictions Section -->
+        <section class="card">
+            <h2>Daily Game Projections</h2>
+            <div id="daily-games-container">
+                <!-- Daily game cards will be inserted by JavaScript -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>© 2024 Your Website Name</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
