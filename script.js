@@ -1,1 +1,83 @@
-const STAT_CONFIG={points:{name:"PTS",dataKey:"points",zKey:"z_points"},reboundsTotal:{name:"REB",dataKey:"reboundsTotal",zKey:"z_reboundsTotal"},assists:{name:"AST",dataKey:"assists",zKey:"z_assists"},steals:{name:"STL",dataKey:"steals",zKey:"z_steals"},blocks:{name:"BLK",dataKey:"blocks",zKey:"z_blocks"},threePointersMade:{name:"3PM",dataKey:"threePointersMade",zKey:"z_threePointersMade"},turnovers:{name:"TO",dataKey:"turnovers",zKey:"z_turnovers"},FG_impact:{name:"FG% Impact",dataKey:"FG%",zKey:"z_FG_impact"},FT_impact:{name:"FT% Impact",dataKey:"FT%",zKey:"z_FT_impact"}},WEIGHT_OPTIONS=[{text:"Punt(x0)",value:0},{text:"x0.25",value:.25},{text:"x0.5",value:.5},{text:"x0.75",value:.75},{text:"Standard(x1)",value:1},{text:"x1.25",value:1.25},{text:"x1.5",value:1.5},{text:"x2.0",value:2}];let fullData={},processedData=[],currentSort={column:"custom_z_score",direction:"desc"};const elements={lastUpdated:document.getElementById("last-updated"),showCount:document.getElementById("show-count"),searchPlayer:document.getElementById("search-player"),seasonControls:document.getElementById("season-controls"),categoryGrid:document.getElementById("category-weights-grid"),table:document.getElementById("predictions-table"),tableHead:document.getElementById("predictions-thead"),tableBody:document.getElementById("predictions-tbody"),loadingMessage:document.getElementById("loading-message"),dailyDateTabs:document.getElementById("daily-date-tabs"),dailyGamesContainer:document.getElementById("daily-games-container"),toggleAdvancedStatsBtn:document.getElementById("toggle-advanced-stats")};function openTab(e,t){document.querySelectorAll(".tab-content").forEach(e=>e.style.display="none"),document.querySelectorAll(".tab-link").forEach(e=>e.classList.remove("active")),document.getElementById(t).style.display="block",e.currentTarget.classList.add("active")}function initializeSeasonTab(){if(!fullData.seasonLongProjections||0===fullData.seasonLongProjections.length)return elements.loadingMessage.textContent="No season-long projections available.",void(elements.seasonControls.style.display="none");elements.seasonControls.style.display="block",setupSeasonControls(),addSeasonEventListeners(),recalculateAndRender(),elements.loadingMessage.style.display="none",elements.table.style.display="table"}function setupSeasonControls(){const e=fullData.seasonLongProjections[0];elements.categoryGrid.innerHTML=Object.entries(STAT_CONFIG).map(([t,n])=>void 0!==e[n.zKey]?`<div class=category-item id=cat-item-${t}><label for=cb-${t}><input type=checkbox id=cb-${t} data-key=${t} checked> ${n.name}</label><select id=sel-${t} data-key=${t}>${WEIGHT_OPTIONS.map(e=>`<option value=${e.value} ${1===e.value?"selected":""}>${e.text}</option>`).join("")}</select></div>`:"").join("")}function addSeasonEventListeners(){elements.categoryGrid.addEventListener("change",recalculateAndRender),elements.showCount.addEventListener("change",recalculateAndRender),elements.searchPlayer.addEventListener("input",recalculateAndRender),elements.tableHead.addEventListener("click",handleSort)}function recalculateAndRender(){const e=getControlSettings();processedData=fullData.seasonLongProjections.map(e=>{let t=0;const n=getControlSettings().weights;for(const o in STAT_CONFIG)if(n[o]>0&&void 0!==e[STAT_CONFIG[o].zKey]){let a=e[STAT_CONFIG[o].zKey];"turnovers"===o&&(a*=-1),t+=a*n[o]}return{...e,custom_z_score:t}}),e.searchTerm&&(processedData=processedData.filter(t=>t.playerName.toLowerCase().includes(e.searchTerm))),sortData(processedData),renderTable(e.activeColumns)}function getControlSettings(){const e={},t=new Set;return document.querySelectorAll(".category-item input[type=checkbox]").forEach(n=>{const o=n.dataset.key,a=document.getElementById(`sel-${o}`);e[o]=n.checked?parseFloat(a.value):0,n.checked&&t.add(o)}),{weights:e,activeColumns:t,showCount:parseInt(elements.showCount.value,10),searchTerm:elements.searchPlayer.value.toLowerCase().trim()}}function renderTable(e){renderTableHeader(e),renderTableBody(e)}function renderTableHeader(e){const t=[{key:"rank",name:"R#"},{key:"playerName",name:"PLAYER"},{key:"pos",name:"POS"},{key:"team",name:"TEAM"},{key:"GP",name:"GP"},{key:"numMinutes",name:"MPG"}],n=Object.entries(STAT_CONFIG).filter(([t])=>e.has(t)).map(([e,t])=>({key:t.dataKey,name:t.name.replace(" Impact","")})),o={key:"custom_z_score",name:"TOTAL ▼"},a=[...t,...n,o];elements.tableHead.innerHTML=`<tr>${a.map(e=>`<th data-sort-key=${e.key}>${e.name}</th>`).join("")}</tr>`}function renderTableBody(e){const t=processedData.slice(0,parseInt(elements.showCount.value,10));elements.tableBody.innerHTML=0===t.length?'<tr><td colspan=20>No players match your criteria.</td></tr>':t.map((t,n)=>{let o="<tr>";o+=`<td>${n+1}</td>`,o+=`<td><b>${t.playerName}</b></td>`,o+=`<td>${t.pos||"N/A"}</td>`,o+=`<td>${t.team||"N/A"}</td>`,o+=`<td>${t.GP||0}</td>`,o+=`<td>${t.numMinutes||0}</td>`;for(const[n,a]of Object.entries(STAT_CONFIG))if(e.has(n)){let e=t[a.zKey]||0;const s=e.toFixed(2),l=e>0?"+"+s:s;let c=t[a.dataKey];"turnovers"===n&&(e*=-1),a.dataKey.endsWith("%")&&(c=(100*(c||0)).toFixed(1)+"%"),o+=`<td class="stat-cell"><div class="color-cell-bg ${getZScoreClass(e)}"><span class="stat-value">${c||0}</span><span class="z-score-value">${l}</span></div></td>`}return o+=`<td><span class="stat-value">${t.custom_z_score.toFixed(2)}</span></td>`,o+="</tr>"}).join("")}function handleSort(e){const t=e.target.closest("th")?.dataset.sortKey;t&&(currentSort.column===t?currentSort.direction="desc"===currentSort.direction?"asc":"desc":(currentSort.column=t,currentSort.direction=["playerName","pos","team"].includes(t)?"asc":"desc"),recalculateAndRender())}function sortData(e){const{column:t,direction:n}=currentSort,o="asc"===n?1:-1;e.sort((e,a)=>{let s=e[t]||"",l=a[t]||"";return"string"==typeof s?s.localeCompare(l)*o:s<l?-1*o:s>l?1*o:0})}function getZScoreClass(e){return null==e?"average":e>=1.75?"elite":e>=1.25?"very-good":e>=.75?"good":e<=-1.25?"not-good":e<=-.75?"below-average":"average"}function initializeDailyTab(){const e=fullData.dailyGamesByDate;if(!e||0===Object.keys(e).length)return void(elements.dailyGamesContainer.innerHTML='<div class=card><p>No daily game predictions available.</p></div>');const t=Object.keys(e).sort((e,t)=>new Date(t)-new Date(e));elements.dailyDateTabs.innerHTML=t.map((e,n)=>`<button class="date-tab ${0===n?"active":""}" data-date="${e}">${new Date(e+"T00:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</button>`).join(""),renderDailyGamesForDate(t[0]),elements.dailyDateTabs.addEventListener("click",e=>{const t=e.target.closest(".date-tab");t&&(document.querySelectorAll(".date-tab").forEach(e=>e.classList.remove("active")),t.classList.add("active"),renderDailyGamesForDate(t.dataset.date))}),elements.toggleAdvancedStatsBtn.addEventListener("click",()=>{elements.dailyGamesContainer.classList.toggle("show-advanced");const e=elements.dailyGamesContainer.classList.contains("show-advanced");elements.toggleAdvancedStatsBtn.textContent=e?"Hide Advanced Stats":"Show Advanced Stats"})}function renderDailyGamesForDate(e){const t=fullData.dailyGamesByDate[e];elements.dailyGamesContainer.innerHTML="",t.forEach(e=>{const t=document.createElement("div");t.className="matchup-card";const[n,o]=e.projections,a=e.projections.map(e=>`<div class=team-box-score><div class=team-header><h3>${e.teamName}</h3><span class=team-total>Proj. Total: <strong>${e.totalPoints}</strong></span></div><div class=table-container><table class=daily-table><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>FGM-A</th><th class="advanced-stat">3PM</th><th class="advanced-stat">FTM-A</th><th class="advanced-stat">TO</th><th class="advanced-stat">FP</th></tr></thead><tbody>${e.players.sort((e,t)=>(t.Predicted_Minutes||0)-(e.Predicted_Minutes||0)).map(e=>`<tr><td>${e.Player_Name}</td><td>${e.Predicted_Minutes||0}</td><td>${e.points||0}</td><td>${e.reb||0}</td><td>${e.ast||0}</td><td>${e.stl||0}</td><td>${e.blk||0}</td><td>${e.fgm||0}-${e.fga||0}</td><td class="advanced-stat">${e.three_pm||0}</td><td class="advanced-stat">${e.ftm||0}-${e.fta||0}</td><td class="advanced-stat">${e.tov||0}</td><td class="advanced-stat">${e.fp||0}</td></tr>`).join("")}</tbody></table></div></div>`).join("");t.innerHTML=`<div class=matchup-header><span>${n.teamName} (${n.winProb}%)</span><span>vs</span><span>(${o.winProb}%) ${o.teamName}</span></div><div class=matchup-body>${a}</div>`,elements.dailyGamesContainer.appendChild(t)})}document.addEventListener("DOMContentLoaded",async()=>{try{const e=await fetch("predictions.json");if(!e.ok)throw new Error(`HTTP error! status: ${e.status}`);fullData=await e.json(),elements.lastUpdated.textContent=new Date(fullData.lastUpdated).toLocaleString(),initializeSeasonTab(),initializeDailyTab()}catch(e){console.error("Failed to initialize:",e),elements.loadingMessage.textContent="Error loading data.",elements.dailyGamesContainer.innerHTML='<p class="card">Error loading daily games data.</p>'}});
+
+    let fullData = {}; let accuracyChartInstance = null; let statErrorChartInstance = null;
+    document.addEventListener("DOMContentLoaded", async () => {
+        try {
+            const response = await fetch("predictions.json");
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            fullData = await response.json();
+            document.getElementById("last-updated").textContent = new Date(fullData.lastUpdated).toLocaleString();
+            initializeDailyTab();
+        } catch (e) { console.error("Failed to initialize:", e); }
+    });
+    function openTab(evt, tabName) {
+        document.querySelectorAll(".tab-content").forEach(tc => tc.style.display = "none");
+        document.querySelectorAll(".tab-link").forEach(tl => tl.classList.remove("active"));
+        document.getElementById(tabName).style.display = "block";
+        evt.currentTarget.classList.add("active");
+    }
+    function initializeDailyTab() {
+        renderAccuracyChart();
+        const dates = Object.keys(fullData.dailyGamesByDate || {}).sort((a, b) => new Date(b) - new Date(a));
+        const dateTabsContainer = document.getElementById('daily-date-tabs');
+        if (dates.length === 0) { document.getElementById('daily-games-container').innerHTML = '<p class="card">No daily predictions available.</p>'; return; }
+        dateTabsContainer.innerHTML = dates.map((date, i) => `<button class="date-tab ${i === 0 ? 'active' : ''}" data-date="${date}">${new Date(date + 'T00:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}</button>`).join('');
+        dateTabsContainer.addEventListener('click', e => {
+            const target = e.target.closest('.date-tab');
+            if(target) {
+                document.querySelectorAll('.date-tab').forEach(t => t.classList.remove('active'));
+                target.classList.add('active');
+                renderDailyGamesForDate(target.dataset.date);
+            }
+        });
+        renderDailyGamesForDate(dates[0]);
+    }
+    function renderAccuracyChart() {
+        const container = document.getElementById('accuracy-chart-container');
+        if (!fullData.historicalGrades || fullData.historicalGrades.length < 2) { container.style.display = 'none'; return; }
+        container.style.display = 'block';
+        const ctx = document.getElementById('accuracy-chart').getContext('2d');
+        const labels = fullData.historicalGrades.map(g => new Date(g.date + 'T00:00:00').toLocaleDateString('en-US', {month: 'short', day: 'numeric'}));
+        const data = fullData.historicalGrades.map(g => g.overallMAEPts);
+        if (accuracyChartInstance) accuracyChartInstance.destroy();
+        accuracyChartInstance = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: 'Average Points MAE', data, borderColor: 'rgb(0, 123, 255)', tension: 0.1, backgroundColor: 'rgba(0, 123, 255, 0.1)', fill: true }] }, options: { scales: { y: { reverse: true, title: { display: true, text: 'Prediction Error (Lower is Better)' } } } } });
+    }
+    function renderDailyGamesForDate(date) {
+        const container = document.getElementById('daily-games-container');
+        container.innerHTML = '';
+        const games = fullData.dailyGamesByDate[date];
+        games.forEach(game => {
+            const card = document.createElement('div');
+            card.className = 'matchup-card';
+            const [proj1, proj2] = game.projections;
+            const gradeButtonHtml = game.grade.isGraded ? `<button class="grade-button" data-game-id="${game.gameId}" data-date="${date}">View Prediction Grade</button>` : '';
+            card.innerHTML = `<div class="matchup-header"><span>${proj1.teamName}</span><span>vs</span><span>${proj2.teamName}</span>${gradeButtonHtml}</div>`;
+            container.appendChild(card);
+        });
+        container.addEventListener('click', e => {
+            if (e.target.classList.contains('grade-button')) {
+                const gameId = e.target.dataset.gameId;
+                const date = e.target.dataset.date;
+                const gameData = fullData.dailyGamesByDate[date].find(g => g.gameId == gameId);
+                if (gameData) showGradeOverlay(gameData);
+            }
+        });
+    }
+    function showGradeOverlay(game) {
+        const grade = game.grade;
+        const overlay = document.getElementById('grade-overlay');
+        const modalContent = document.getElementById('grade-modal-content');
+        const [team1, team2] = Object.keys(grade.gameSummary.predicted);
+        const renderPlayer = p => `<li class="player-grade-item"><div class="player-name">${p.playerName}</div><div class="stats-comparison"><table><thead><tr><th></th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody><tr><td>Predicted</td><td class="predicted">${p.predicted.PTS.toFixed(1)}</td><td class="predicted">${p.predicted.REB.toFixed(1)}</td><td class="predicted">${p.predicted.AST.toFixed(1)}</td></tr><tr><td>Actual</td><td>${p.actual.PTS.toFixed(1)}</td><td>${p.actual.REB.toFixed(1)}</td><td>${p.actual.AST.toFixed(1)}</td></tr></tbody></table></div></li>`;
+        modalContent.innerHTML = `<div class="grade-modal"><div class="modal-header"><h2>Prediction Grade</h2><span class="grade-badge grade-${grade.overallGrade.replace('+', '-plus')}">${grade.overallGrade}</span><button class="modal-close">×</button></div><div class="modal-section scoreboard"><div class="team-name">${team1}</div><div>vs</div><div class="team-name">${team2}</div><div>Predicted: <span class="score">${grade.gameSummary.predicted[team1]}</span></div><div></div><div>Predicted: <span class="score">${grade.gameSummary.predicted[team2]}</span></div><div>Actual: <span class="score">${grade.gameSummary.actual[team1]}</span></div><div></div><div>Actual: <span class="score">${grade.gameSummary.actual[team2]}</span></div></div><div class="modal-section shining-stars"><h3>⭐ Shining Stars (Most Accurate)</h3><ul class="player-grade-list">${grade.shiningStars.map(renderPlayer).join('')}</ul></div><div class="modal-section tough-calls"><h3>🔬 Tough Calls (Largest Misses)</h3><ul class="player-grade-list">${grade.toughCalls.map(renderPlayer).join('')}</ul></div><div class="modal-section"><h3>Stat Accuracy Deep Dive (Avg. Error)</h3><canvas id="stat-error-chart"></canvas></div></div>`;
+        overlay.classList.remove('overlay-hidden');
+        overlay.classList.add('visible');
+        overlay.querySelector('.modal-close').addEventListener('click', () => overlay.classList.remove('visible'));
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('visible'); });
+        renderStatErrorChart(grade.statErrors);
+    }
+    function renderStatErrorChart(errors) {
+        const ctx = document.getElementById('stat-error-chart').getContext('2d');
+        if (statErrorChartInstance) statErrorChartInstance.destroy();
+        statErrorChartInstance = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(errors), datasets: [{ label: 'Average Error', data: Object.values(errors), backgroundColor: 'rgba(255, 99, 132, 0.2)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'Average Error' } } } } });
+    }
+    
