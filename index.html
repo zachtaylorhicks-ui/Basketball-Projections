@@ -27,7 +27,7 @@
             <div class="controls-card">
                 <div class="top-filters">
                     <div class="filter-group">
-                        <label>SHOW</label>
+                        <label for="show-count">SHOW</label>
                         <select id="show-count">
                             <option value="50">Top 50</option>
                             <option value="100">Top 100</option>
@@ -36,15 +36,18 @@
                         </select>
                     </div>
                     <div class="filter-group search-group">
-                        <label>SEARCH PLAYER</label>
+                        <label for="search-player">SEARCH PLAYER</label>
                         <input type="text" id="search-player" placeholder="e.g., Nikola Jokic">
                     </div>
                 </div>
-                <div class="category-weights-grid" id="category-weights-grid">
-                    <!-- Category weights dynamically inserted here -->
+                <div class="category-weights-container">
+                    <p class="weights-title"><strong>Customize Rankings:</strong> Uncheck a category to "punt" it, or adjust weights for leagues that value certain stats more.</p>
+                    <div class="category-weights-grid" id="category-weights-grid">
+                        <!-- Category weights dynamically inserted here by script.js -->
+                    </div>
                 </div>
-                <div class="color-guide-container">
-                    <strong>Color Guide:</strong>
+                 <div class="color-guide-container">
+                    <strong>Color Guide (Player Value):</strong>
                     <div class="color-guide">
                         <span class="guide-item elite">Elite</span><span class="guide-item very-good">Very Good</span><span class="guide-item good">Good</span>
                         <span class="guide-item average">Average</span><span class="guide-item below-average">Below Avg</span><span class="guide-item not-good">Not Good</span>
@@ -52,7 +55,8 @@
                 </div>
             </div>
             <div class="table-container card">
-                <table id="predictions-table">
+                <div id="loading-message">Loading player data...</div>
+                <table id="predictions-table" style="display:none;">
                     <thead id="predictions-thead"></thead>
                     <tbody id="predictions-tbody"></tbody>
                 </table>
@@ -61,8 +65,8 @@
 
         <!-- Daily Game Projections Tab -->
         <div id="Daily" class="tab-content">
-            <div id="daily-games-container">
-                <!-- Daily game cards dynamically inserted here -->
+             <div id="daily-games-container">
+                <!-- Daily game cards dynamically inserted here by script.js -->
             </div>
         </div>
     </main>
