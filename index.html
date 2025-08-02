@@ -12,7 +12,14 @@
 </head>
 <body>
     <header>
-        <!-- Unchanged Header with Dark Mode Toggle -->
+        <div class="header-content">
+            <h1>Advanced NBA Fantasy Projections</h1>
+            <p class="last-updated-text">Last Updated: <span id="last-updated">Loading...</span></p>
+        </div>
+        <div class="theme-switcher">
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.894 17.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.894 17.894a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM3 12a.75.75 0 01-.75.75H.75a.75.75 0 010-1.5h2.25A.75.75 0 013 12zM6.106 6.106a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"/></svg>
+            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 004.463-.949a.75.75 0 01.82.162l.25.333a.75.75 0 01-.434 1.154A11.373 11.373 0 0112 21.75c-6.494 0-11.522-5.263-11.247-11.724a11.373 11.373 0 013.463-5.324.75.75 0 011.155-.434l.333.25z" clip-rule="evenodd" /></svg>
+        </div>
     </header>
     
     <div class="tabs">
@@ -28,18 +35,17 @@
                         <label for="data-source-selector">DATA SOURCE</label>
                         <select id="data-source-selector"></select>
                     </div>
-                    <!-- NEW FILTERS -->
                     <div class="filter-group" id="game-type-filter-group" style="display: none;">
                         <label for="game-type-selector">GAME TYPE</label>
                         <select id="game-type-selector">
-                            <option value="regularseason">Regular Season</option>
+                            <option value="regularseason" selected>Regular Season</option>
                             <option value="preseason">Preseason</option>
                         </select>
                     </div>
                     <div class="filter-group" id="calc-mode-filter-group" style="display: none;">
                         <label for="calc-mode-selector">CALCULATION MODE</label>
                         <select id="calc-mode-selector">
-                            <option value="per_game">Per-Game Averages</option>
+                            <option value="per_game" selected>Per-Game Averages</option>
                             <option value="totals">Season Totals</option>
                         </select>
                     </div>
@@ -57,15 +63,34 @@
                         <input type="text" id="search-player" placeholder="e.g., Nikola Jokic">
                     </div>
                 </div>
-                <!-- Unchanged bottom controls -->
+                <div class="bottom-controls">
+                    <div class="category-weights-container">
+                        <p class="weights-title"><strong>Customize Rankings:</strong> Uncheck a category to "punt" it.</p>
+                        <div class="category-weights-grid" id="category-weights-grid"></div>
+                    </div>
+                    <div class="color-guide-container">
+                        <strong>Color Guide (Z-Score):</strong>
+                        <div class="color-guide">
+                            <span class="guide-item elite">Elite</span>
+                            <span class="guide-item very-good">Very Good</span>
+                            <span class="guide-item good">Good</span>
+                            <span class="guide-item average">Average</span>
+                            <span class="guide-item below-average">Below Avg</span>
+                            <span class="guide-item not-good">Not Good</span>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="table-container card">
-                <!-- Unchanged table structure -->
+                <div id="loading-message">Loading player data...</div>
+                <table id="predictions-table" style="display:none;">
+                    <thead id="predictions-thead"></thead>
+                    <tbody id="predictions-tbody"></tbody>
+                </table>
             </div>
         </div>
 
         <div id="Daily" class="tab-content">
-            <!-- NEW INTERACTIVE CHART -->
             <div class="card" id="accuracy-chart-container" style="margin-bottom:25px; display:none;">
                 <div class="chart-header">
                     <h2>Daily Prediction Accuracy Analysis</h2>
@@ -85,15 +110,26 @@
                     <canvas id="accuracy-chart"></canvas>
                 </div>
             </div>
-            <!-- Unchanged daily controls and games container -->
+            <div id="daily-controls">
+                <div id="daily-date-tabs"></div>
+                <button id="toggle-advanced-stats" class="button-outline">Show Advanced Stats</button>
+            </div>
+            <div id="daily-games-container"></div>
         </div>
     </main>
 
-    <!-- NEW PLAYER PROFILE MODAL (Initially Hidden) -->
     <div id="player-profile-overlay" class="grade-overlay">
         <div id="player-profile-modal-content" class="grade-modal"></div>
     </div>
     
-    <!-- Unchanged Grade Modal Overlay and Footer -->
+    <div id="grade-overlay" class="grade-overlay">
+        <div id="grade-modal-content" class="grade-modal"></div>
+    </div>
+    
+    <footer>
+        <p>© 2024 Advanced NBA Fantasy Projections. All Rights Reserved.</p>
+    </footer>
+
+    <script src="script.js"></script>
 </body>
 </html>
