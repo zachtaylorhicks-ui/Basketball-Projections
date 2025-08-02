@@ -1,65 +1,61 @@
-// script.js
+// script.js (v19.1 - On-Demand Loading - Complete)
 
 // --- GLOBAL STATE & CONFIGURATION ---
 let fullData = {};
 let processedSeasonData = [];
 let currentSort = { column: "custom_z_score", direction: "desc" };
 let accuracyChartInstance = null;
+let loadedSeasonDataCache = {}; // Cache for on-demand data
 
 const STAT_CONFIG = {
-    PTS: { name: "PTS", zKey: "z_points" },
-    REB: { name: "REB", zKey: "z_reboundsTotal" },
-    AST: { name: "AST", zKey: "z_assists" },
-    STL: { name: "STL", zKey: "z_steals" },
-    BLK: { name: "BLK", zKey: "z_blocks" },
-    '3PM': { name: "3PM", zKey: "z_threePointersMade" },
-    TOV: { name: "TO", zKey: "z_turnovers", invert: true },
+    PTS: { name: "PTS", zKey: "z_PTS" },
+    REB: { name: "REB", zKey: "z_REB" },
+    AST: { name: "AST", zKey: "z_AST" },
+    STL: { name: "STL", zKey: "z_STL" },
+    BLK: { name: "BLK", zKey: "z_BLK" },
+    '3PM': { name: "3PM", zKey: "z_3PM" },
+    TOV: { name: "TO", zKey: "z_TOV", invert: true },
     FG_impact: { name: "FG% Impact", zKey: "z_FG_impact" },
     FT_impact: { name: "FT% Impact", zKey: "z_FT_impact" },
 };
 
-// --- INITIALIZATION ---
+// --- INITIALIZATION & THEME ---
 document.addEventListener("DOMContentLoaded", async () => {
     initializeTheme();
     try {
         const response = await fetch("predictions.json");
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        fullData = await response.json();
+        fullData = await response.json(); // This is now the small manifest file
         
         document.getElementById("last-updated").textContent = new Date(fullData.lastUpdated).toLocaleString();
         
         initializeSeasonTab();
         initializeDailyTab();
+
+        document.body.addEventListener('click', handlePlayerLinkClick);
+
     } catch (e) {
         console.error("FATAL: Failed to initialize application.", e);
-        document.getElementById("loading-message").textContent = "Error: Could not load projection data. Please try again later.";
+        document.getElementById("loading-message").textContent = "Error: Could not load data manifest. Please try again later.";
     }
 });
 
 function initializeTheme() {
     const themeSwitcher = document.querySelector('.theme-switcher');
     const doc = document.documentElement;
-    const onMediaChange = (e) => {
-        const newTheme = e.matches ? 'dark' : 'light';
-        doc.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-    };
+    const storedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    if (doc) {
+        doc.setAttribute('data-theme', storedTheme);
+    }
 
-    const storedTheme = localStorage.getItem('theme');
-    const preferredTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const currentTheme = storedTheme || preferredTheme;
-    doc.setAttribute('data-theme', currentTheme);
-
-    themeSwitcher.addEventListener('click', () => {
-        const newTheme = doc.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-        doc.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-    });
-    
-    // Watch for OS theme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onMediaChange);
+    if(themeSwitcher) {
+        themeSwitcher.addEventListener('click', () => {
+            const newTheme = doc.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            doc.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+    }
 }
-
 
 // --- TABS ---
 function openTab(evt, tabName) {
@@ -67,51 +63,171 @@ function openTab(evt, tabName) {
     document.querySelectorAll(".tab-link").forEach(link => link.classList.remove("active"));
     document.getElementById(tabName).style.display = "block";
     evt.currentTarget.classList.add("active");
-    if (tabName === 'Daily') document.getElementById("daily-games-container").classList.remove("show-advanced");
 }
 
-// --- SEASON-LONG RANKINGS TAB ---
+// --- PLAYER PROFILE MODAL ---
+function handlePlayerLinkClick(e) {
+    const link = e.target.closest('.player-link');
+    if (!link) return;
+    
+    e.preventDefault();
+    const personId = parseInt(link.dataset.personId, 10);
+    const profile = fullData.playerProfiles[personId];
+    
+    if (profile) {
+        showPlayerProfileOverlay(profile);
+    }
+}
+
+function showPlayerProfileOverlay(profile) {
+    const overlay = document.getElementById("player-profile-overlay");
+    const modalContent = document.getElementById("player-profile-modal-content");
+    
+    if (overlay && modalContent) {
+        modalContent.innerHTML = buildPlayerProfileModalHTML(profile);
+        overlay.classList.add("visible");
+        
+        const closeModal = () => overlay.classList.remove("visible");
+        const closeButton = overlay.querySelector(".modal-close");
+        if(closeButton) closeButton.addEventListener("click", closeModal);
+        overlay.addEventListener("click", e => {
+            if (e.target === overlay) closeModal();
+        });
+    }
+}
+
+function buildPlayerProfileModalHTML(profile) {
+    const initials = profile.name.split(' ').map(n => n[0]).join('').substring(0, 2);
+    return `
+        <div class="grade-modal-inner">
+            <div class="modal-header">
+                <h2>${profile.name}</h2>
+                <button class="modal-close">×</button>
+            </div>
+            <div class="profile-modal-body">
+                <div class="profile-sidebar">
+                    <div class="profile-avatar">${initials}</div>
+                    <div class="profile-info-grid">
+                        <div class="profile-info-item"><div class="profile-info-label">Height</div><div class="profile-info-value">${profile.height || 'N/A'}</div></div>
+                        <div class="profile-info-item"><div class="profile-info-label">Weight</div><div class="profile-info-value">${profile.weight || 'N/A'}</div></div>
+                        <div class="profile-info-item"><div class="profile-info-label">Born</div><div class="profile-info-value">${profile.dob || 'N/A'}</div></div>
+                        <div class="profile-info-item"><div class="profile-info-label">From</div><div class="profile-info-value">${profile.collegeOrCountry || 'N/A'}</div></div>
+                    </div>
+                </div>
+                <div class="profile-main-content">
+                     <h3>Team: ${profile.team || 'N/A'}</h3>
+                     <p>Full player stats, career logs, and news will be displayed here in a future version.</p>
+                     ${profile.wikiUrl ? `<a href="${profile.wikiUrl}" target="_blank" rel="noopener noreferrer">View on Wikipedia</a>` : ''}
+                </div>
+            </div>
+        </div>`;
+}
+
+// --- SEASON-LONG RANKINGS TAB (ON-DEMAND LOADING) ---
 function initializeSeasonTab() {
-    if (!fullData.seasonLongData || Object.keys(fullData.seasonLongData).length === 0) {
+    if (!fullData.seasonLongDataManifest || Object.keys(fullData.seasonLongDataManifest).length === 0) {
         document.getElementById("loading-message").textContent = "No season-long data available.";
-        document.getElementById("season-controls").style.display = "none";
         return;
     }
-    
     setupSeasonControls();
     addSeasonEventListeners();
-    recalculateAndRenderSeason();
-
+    handleSeasonControlChange(); // Trigger initial data load
     document.getElementById("loading-message").style.display = "none";
     document.getElementById("predictions-table").style.display = "table";
 }
 
 function setupSeasonControls() {
-    // Populate Data Source Dropdown
-    const sourceSelector = document.getElementById("projection-source-selector");
-    sourceSelector.innerHTML = Object.entries(fullData.seasonLongData)
-        .map(([key, { label }]) => `<option value="${key}">${label}</option>`)
-        .join('');
+    const sourceSelector = document.getElementById("data-source-selector");
+    const uniqueSources = {};
+    Object.keys(fullData.seasonLongDataManifest).forEach(key => {
+        const baseKey = key.replace(/_per_game|_totals|_regularseason|_preseason/g, '');
+        if (!uniqueSources[baseKey]) {
+            uniqueSources[baseKey] = fullData.seasonLongDataManifest[key].label;
+        }
+    });
+    if (sourceSelector) {
+        sourceSelector.innerHTML = Object.entries(uniqueSources)
+            .sort(([keyA], [keyB]) => keyB.localeCompare(keyA))
+            .map(([key, label]) => `<option value="${key}">${label}</option>`)
+            .join('');
+    }
 
-    // Populate Category Checkboxes
     const catGrid = document.getElementById("category-weights-grid");
-    catGrid.innerHTML = Object.entries(STAT_CONFIG)
-        .map(([key, { name }]) => `
-            <div class="category-item" id="cat-item-${key}">
-                <label><input type="checkbox" id="cb-${key}" data-key="${key}" checked> ${name}</label>
-            </div>
-        `).join('');
+    if(catGrid) {
+        catGrid.innerHTML = Object.entries(STAT_CONFIG)
+            .map(([key, { name }]) => `<div class="category-item"><label><input type="checkbox" data-key="${key}" checked> ${name}</label></div>`)
+            .join('');
+    }
 }
 
 function addSeasonEventListeners() {
-    document.getElementById("season-controls").addEventListener("change", recalculateAndRenderSeason);
-    document.getElementById("search-player").addEventListener("input", recalculateAndRenderSeason);
-    document.getElementById("predictions-thead").addEventListener("click", handleSortSeason);
+    document.getElementById("season-controls")?.addEventListener("change", handleSeasonControlChange);
+    document.getElementById("search-player")?.addEventListener("input", recalculateAndRenderSeason); // No await needed here, it's just a filter
+    document.getElementById("predictions-thead")?.addEventListener("click", handleSortSeason);
 }
 
-function recalculateAndRenderSeason() {
+async function handleSeasonControlChange() {
+    const sourceSelector = document.getElementById("data-source-selector");
+    if (!sourceSelector) return;
+
+    const sourceKey = sourceSelector.value;
+    const isHistorical = sourceKey.startsWith('actuals');
+
+    const gameTypeFilter = document.getElementById('game-type-filter-group');
+    const calcModeFilter = document.getElementById('calc-mode-filter-group');
+
+    if (gameTypeFilter) gameTypeFilter.style.display = isHistorical ? 'block' : 'none';
+    if (calcModeFilter) calcModeFilter.style.display = isHistorical ? 'block' : 'none';
+    
+    const tbody = document.getElementById("predictions-tbody");
+    if(tbody) tbody.innerHTML = `<tr><td colspan="15">Loading data...</td></tr>`;
+
+    await recalculateAndRenderSeason();
+}
+
+function getSeasonControlSettings() {
+    const activeCategories = new Set();
+    document.querySelectorAll("#category-weights-grid input:checked").forEach(cb => activeCategories.add(cb.dataset.key));
+    
+    const baseKey = document.getElementById("data-source-selector").value;
+    const isProjection = baseKey.startsWith('projections');
+    
+    let fullKey;
+    if (isProjection) {
+        fullKey = `${baseKey}_per_game`;
+    } else {
+        const gameType = document.getElementById("game-type-selector").value;
+        const calcMode = document.getElementById("calc-mode-selector").value;
+        fullKey = `${baseKey}_${gameType}_${calcMode}`;
+    }
+
+    return {
+        sourceKey: fullKey,
+        activeCategories,
+        showCount: parseInt(document.getElementById("show-count").value, 10),
+        searchTerm: document.getElementById("search-player").value.toLowerCase().trim(),
+    };
+}
+
+async function recalculateAndRenderSeason() {
     const settings = getSeasonControlSettings();
-    const sourceData = fullData.seasonLongData[settings.sourceKey].data;
+    let sourceData;
+
+    if (loadedSeasonDataCache[settings.sourceKey]) {
+        sourceData = loadedSeasonDataCache[settings.sourceKey];
+    } else {
+        try {
+            const response = await fetch(`data/${settings.sourceKey}.json`);
+            if (!response.ok) throw new Error(`Could not load data file: ${settings.sourceKey}.json`);
+            sourceData = await response.json();
+            loadedSeasonDataCache[settings.sourceKey] = sourceData;
+        } catch (error) {
+            console.error(error);
+            const tbody = document.getElementById("predictions-tbody");
+            if(tbody) tbody.innerHTML = `<tr><td colspan="15">Error loading data for the selected filters.</td></tr>`;
+            return;
+        }
+    }
 
     processedSeasonData = sourceData.map(player => {
         let customZScore = 0;
@@ -125,75 +241,52 @@ function recalculateAndRenderSeason() {
     });
 
     if (settings.searchTerm) {
-        processedSeasonData = processedSeasonData.filter(p =>
-            (p.playerName || "").toLowerCase().includes(settings.searchTerm)
-        );
+        processedSeasonData = processedSeasonData.filter(p => (p.playerName || "").toLowerCase().includes(settings.searchTerm));
     }
     
     sortSeasonData();
-    renderSeasonTable(settings);
+    renderSeasonTable();
 }
 
-function getSeasonControlSettings() {
-    const activeCategories = new Set();
-    document.querySelectorAll("#category-weights-grid input:checked").forEach(cb => activeCategories.add(cb.dataset.key));
-    
-    return {
-        sourceKey: document.getElementById("projection-source-selector").value,
-        activeCategories,
-        showCount: parseInt(document.getElementById("show-count").value, 10),
-        searchTerm: document.getElementById("search-player").value.toLowerCase().trim(),
-    };
-}
-
-function renderSeasonTable(settings) {
+function renderSeasonTable() {
     renderSeasonTableHeader();
-    renderSeasonTableBody(settings);
+    renderSeasonTableBody();
 }
 
 function renderSeasonTableHeader() {
+    const thead = document.getElementById("predictions-thead");
+    if(!thead) return;
     const baseHeaders = [{key: "rank", name: "R#"}, {key: "playerName", name: "PLAYER"}, {key: "pos", name: "POS"}, {key: "team", name: "TEAM"}, {key: "GP", name: "GP"}, {key: "MIN", name: "MPG"}];
     const statHeaders = Object.entries(STAT_CONFIG).map(([key, { name }]) => ({ key, name: name.replace(" Impact", "") }));
     const totalHeader = { key: "custom_z_score", name: "TOTAL" };
     const allHeaders = [...baseHeaders, ...statHeaders, totalHeader];
-
-    document.getElementById("predictions-thead").innerHTML = `<tr>${allHeaders.map(h => 
-        `<th data-sort-key="${h.key}">${h.name}</th>`
-    ).join('')}</tr>`;
+    thead.innerHTML = `<tr>${allHeaders.map(h => `<th data-sort-key="${h.key}">${h.name}</th>`).join('')}</tr>`;
 }
 
-function renderSeasonTableBody(settings) {
+function renderSeasonTableBody() {
     const tbody = document.getElementById("predictions-tbody");
+    if(!tbody) return;
+
+    const settings = getSeasonControlSettings();
     const dataToRender = processedSeasonData.slice(0, settings.showCount);
 
     if (!dataToRender.length) {
-        tbody.innerHTML = `<tr><td colspan="${Object.keys(STAT_CONFIG).length + 7}">No players match your criteria.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="15">No players match your criteria.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = dataToRender.map((player, index) => {
-        let rowHtml = `
-            <td>${index + 1}</td>
-            <td><b>${player.playerName || 'N/A'}</b></td>
-            <td>${player.pos || 'N/A'}</td>
-            <td>${player.team || 'N/A'}</td>
-            <td>${player.GP || 0}</td>
-            <td>${(player.MIN || 0).toFixed(1)}</td>
-        `;
+        const hasProfile = fullData.playerProfiles && fullData.playerProfiles[player.personId];
+        const nameHtml = hasProfile 
+            ? `<a href="#" class="player-link" data-person-id="${player.personId}">${player.playerName || 'N/A'}</a>`
+            : `<span class="player-unlinked">${player.playerName || 'N/A'}</span>`;
+
+        let rowHtml = `<td>${index + 1}</td><td><b>${nameHtml}</b></td><td>${player.pos || 'N/A'}</td><td>${player.team || 'N/A'}</td><td>${player.GP || 0}</td><td>${(player.MIN || player.numMinutes || 0).toFixed(1)}</td>`;
 
         for (const [key, config] of Object.entries(STAT_CONFIG)) {
             const rawValue = player[key] || 0;
             const zValue = player[config.zKey] || 0;
-            const zScoreDisplay = zValue.toFixed(2);
-            const zScoreClass = getZScoreClass(zValue);
-            
-            rowHtml += `
-                <td class="stat-cell">
-                    <div class="color-cell-bg ${zScoreClass}">
-                        <span class="stat-value">${rawValue.toFixed(1)}</span>
-                        <span class="z-score-value">${zScoreDisplay}</span>
-                    </div>
-                </td>`;
+            rowHtml += `<td class="stat-cell"><div class="color-cell-bg ${getZScoreClass(zValue)}"><span class="stat-value">${rawValue.toFixed(1)}</span><span class="z-score-value">${zValue.toFixed(2)}</span></div></td>`;
         }
         
         rowHtml += `<td><span class="stat-value">${player.custom_z_score.toFixed(2)}</span></td>`;
@@ -201,10 +294,10 @@ function renderSeasonTableBody(settings) {
     }).join('');
 }
 
+
 function handleSortSeason(e) {
     const sortKey = e.target.closest("th")?.dataset.sortKey;
     if (!sortKey) return;
-
     if (currentSort.column === sortKey) {
         currentSort.direction = currentSort.direction === "desc" ? "asc" : "desc";
     } else {
@@ -217,210 +310,176 @@ function handleSortSeason(e) {
 function sortSeasonData() {
     const { column, direction } = currentSort;
     const sortModifier = direction === "asc" ? 1 : -1;
-
     processedSeasonData.sort((a, b) => {
-        let valA = a[column] || 0;
-        let valB = b[column] || 0;
-        if (typeof valA === 'string') {
-            return valA.localeCompare(valB) * sortModifier;
-        }
+        let valA = a[column] || 0; let valB = b[column] || 0;
+        if (typeof valA === 'string') return valA.localeCompare(valB) * sortModifier;
         return (valA - valB) * sortModifier;
     });
 }
 
 function getZScoreClass(z) {
-    if (z === null || z === undefined) return "average";
-    if (z >= 1.75) return "elite";
-    if (z >= 1.25) return "very-good";
-    if (z >= 0.75) return "good";
-    if (z <= -1.25) return "not-good";
-    if (z <= -0.75) return "below-average";
-    return "average";
+    if (z >= 1.75) return "elite"; if (z >= 1.25) return "very-good"; if (z >= 0.75) return "good";
+    if (z <= -1.25) return "not-good"; if (z <= -0.75) return "below-average"; return "average";
 }
 
 // --- DAILY PROJECTIONS TAB ---
 function initializeDailyTab() {
     renderAccuracyChart();
+    document.getElementById("accuracy-metric-selector")?.addEventListener('change', renderAccuracyChart);
+    
     const gamesContainer = document.getElementById("daily-games-container");
     const dateTabsContainer = document.getElementById("daily-date-tabs");
     const sortedDates = Object.keys(fullData.dailyGamesByDate || {}).sort((a, b) => new Date(b) - new Date(a));
 
     if (!sortedDates.length) {
-        gamesContainer.innerHTML = '<div class="card"><p>No daily predictions available.</p></div>';
+        if(gamesContainer) gamesContainer.innerHTML = '<div class="card"><p>No daily predictions available.</p></div>';
         return;
     }
 
-    dateTabsContainer.innerHTML = sortedDates.map((date, index) =>
-        `<button class="date-tab ${index === 0 ? 'active' : ''}" data-date="${date}">
-            ${new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-        </button>`
-    ).join('');
+    if(dateTabsContainer) {
+        dateTabsContainer.innerHTML = sortedDates.map((date, index) =>
+            `<button class="date-tab ${index === 0 ? 'active' : ''}" data-date="${date}">${new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</button>`
+        ).join('');
 
-    dateTabsContainer.addEventListener("click", e => {
-        const tab = e.target.closest(".date-tab");
-        if (tab) {
-            document.querySelectorAll(".date-tab").forEach(t => t.classList.remove("active"));
-            tab.classList.add("active");
-            renderDailyGamesForDate(tab.dataset.date);
-        }
-    });
+        dateTabsContainer.addEventListener("click", e => {
+            const tab = e.target.closest(".date-tab");
+            if (tab) {
+                document.querySelectorAll(".date-tab").forEach(t => t.classList.remove("active"));
+                tab.classList.add("active");
+                renderDailyGamesForDate(tab.dataset.date);
+            }
+        });
+    }
 
-    gamesContainer.addEventListener("click", e => {
-        if (e.target.classList.contains("grade-button")) {
-            const gameId = e.target.dataset.gameId;
-            const date = e.target.dataset.date;
-            const gameData = fullData.dailyGamesByDate[date].find(g => g.gameId == gameId);
-            if (gameData && gameData.grade.isGraded) showGradeOverlay(gameData);
-        }
-    });
+    if(gamesContainer) {
+        gamesContainer.addEventListener("click", e => {
+            if (e.target.classList.contains("grade-button")) {
+                const gameData = fullData.dailyGamesByDate[e.target.dataset.date].find(g => g.gameId == e.target.dataset.gameId);
+                if (gameData && gameData.grade.isGraded) showGradeOverlay(gameData);
+            }
+        });
+    }
 
-    document.getElementById("toggle-advanced-stats").addEventListener("click", () => {
-        gamesContainer.classList.toggle("show-advanced");
-    });
-
+    document.getElementById("toggle-advanced-stats")?.addEventListener("click", () => gamesContainer.classList.toggle("show-advanced"));
     renderDailyGamesForDate(sortedDates[0]);
 }
 
 function renderAccuracyChart() {
     const container = document.getElementById("accuracy-chart-container");
-    if (!fullData.historicalGrades || fullData.historicalGrades.length < 2) {
-        container.style.display = 'none';
+    const chartCanvas = document.getElementById('accuracy-chart');
+    if (!container || !chartCanvas || !fullData.historicalGrades || fullData.historicalGrades.length < 1) {
+        if(container) container.style.display = 'none';
         return;
     }
     container.style.display = 'block';
-    const ctx = document.getElementById('accuracy-chart').getContext('2d');
-    const labels = fullData.historicalGrades.map(g => new Date(g.date + "T00:00:00").toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-    const data = fullData.historicalGrades.map(g => g.overallMAE);
+    
+    const ctx = chartCanvas.getContext('2d');
+    const selectedMetric = document.getElementById('accuracy-metric-selector').value;
+    
+    const gradesByDate = fullData.historicalGrades.reduce((acc, g) => {
+        if (!acc[g.date]) acc[g.date] = [];
+        if (g[selectedMetric] !== undefined) acc[g.date].push(g[selectedMetric]);
+        return acc;
+    }, {});
+    
+    const sortedDates = Object.keys(gradesByDate).sort((a,b) => new Date(a) - new Date(b));
+    const labels = sortedDates.map(d => new Date(d + "T00:00:00").toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+    const data = sortedDates.map(d => {
+        const dayGrades = gradesByDate[d];
+        return dayGrades.length ? dayGrades.reduce((a, b) => a + b, 0) / dayGrades.length : 0;
+    });
 
     if (accuracyChartInstance) accuracyChartInstance.destroy();
-
     accuracyChartInstance = new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
             labels,
             datasets: [{
-                label: 'Prediction Error (Lower is Better)',
-                data,
-                borderColor: 'var(--primary-color)',
-                backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                fill: true,
-                tension: 0.1,
+                label: selectedMetric, data,
+                backgroundColor: 'rgba(13, 110, 253, 0.6)',
+                borderColor: 'var(--primary-color)', borderWidth: 1
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: { beginAtZero: true }
-            }
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: selectedMetric !== 'scoreDifference', title: { display: true, text: 'Average Value' } } }
         }
     });
 }
 
 function renderDailyGamesForDate(date) {
     const container = document.getElementById("daily-games-container");
-    container.innerHTML = ""; // Clear previous games
+    if(!container) return;
+    container.innerHTML = "";
     const games = fullData.dailyGamesByDate[date] || [];
-
     games.forEach(game => {
         const matchupCard = document.createElement("div");
         matchupCard.className = "matchup-card";
         const [team1, team2] = game.projections;
-
-        const gradeButton = game.grade && game.grade.isGraded
-            ? `<button class="grade-button" data-game-id="${game.gameId}" data-date="${date}">View Prediction Grade</button>`
-            : '';
-
-        matchupCard.innerHTML = `
-            <div class="matchup-header">
-                <span class="matchup-header-teams">${team1.teamName} vs ${team2.teamName}</span>
-                ${gradeButton}
-            </div>
-            <div class="matchup-body">
-                ${createTeamTableHTML(team1)}
-                ${createTeamTableHTML(team2)}
-            </div>`;
+        const gradeButton = game.grade && game.grade.isGraded ? `<button class="grade-button" data-game-id="${game.gameId}" data-date="${date}">View Full Grade</button>` : '';
+        matchupCard.innerHTML = `<div class="matchup-header"><span class="matchup-header-teams">${team1.teamName} vs ${team2.teamName}</span>${gradeButton}</div><div class="matchup-body">${createTeamTableHTML(team1, game.grade)}${createTeamTableHTML(team2, game.grade)}</div>`;
         container.appendChild(matchupCard);
     });
 }
 
-function createTeamTableHTML(teamData) {
+function createTeamTableHTML(teamData, gameGrade) {
+    const isGraded = gameGrade && gameGrade.isGraded;
+    const getStatCell = (predVal, actualVal) => {
+        predVal = predVal || 0;
+        if (actualVal === null || actualVal === undefined) return `<td>${predVal.toFixed(1)}</td>`;
+        return `<td class="inline-grade-cell"><span class="inline-grade-pred">${predVal.toFixed(1)}</span><span class="inline-grade-separator">/</span><span class="inline-grade-actual">${actualVal.toFixed(1)}</span></td>`;
+    };
+
     const playersHtml = teamData.players
         .sort((a, b) => (b.Predicted_Minutes || 0) - (a.Predicted_Minutes || 0))
-        .map(p => `
-            <tr>
-                <td>${p.Player_Name}</td>
-                <td>${(p.Predicted_Minutes || 0).toFixed(1)}</td>
-                <td>${(p.points || 0).toFixed(1)}</td>
-                <td>${(p.reb || 0).toFixed(1)}</td>
-                <td>${(p.ast || 0).toFixed(1)}</td>
-                <td class="advanced-stat">${(p.stl || 0).toFixed(1)}</td>
-                <td class="advanced-stat">${(p.blk || 0).toFixed(1)}</td>
-                <td class="advanced-stat">${(p.three_pm || 0).toFixed(1)}</td>
-                <td class="advanced-stat">${(p.tov || 0).toFixed(1)}</td>
-                <td class="advanced-stat">${(p.fp || 0).toFixed(1)}</td>
-            </tr>
-        `).join('');
+        .map(p => {
+            const playerId = p.Player_ID || p.personId;
+            const actuals = isGraded ? gameGrade.playerActuals[playerId] : null;
+            const hasProfile = fullData.playerProfiles && fullData.playerProfiles[playerId];
+            const nameHtml = hasProfile ? `<a href="#" class="player-link" data-person-id="${playerId}">${p.Player_Name}</a>` : `<span class="player-unlinked">${p.Player_Name}</span>`;
+            
+            return `<tr><td>${nameHtml}</td><td>${(p.Predicted_Minutes || 0).toFixed(1)}</td>${getStatCell(p.points, actuals?.PTS)}${getStatCell(p.reb, actuals?.REB)}${getStatCell(p.ast, actuals?.AST)}<td class="advanced-stat">${getStatCell(p.stl, actuals?.STL)}</td><td class="advanced-stat">${getStatCell(p.blk, actuals?.BLK)}</td></tr>`;
+        }).join('');
 
-    return `
-        <div class="team-box-score">
-            <div class="team-header">
-                <h3>${teamData.teamName} (${teamData.winProb}%)</h3>
-                <div class="team-total">Proj. Total: <strong>${teamData.totalPoints.toFixed(1)}</strong></div>
-            </div>
-            <table class="daily-table">
-                <thead>
-                    <tr>
-                        <th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th>
-                        <th class="advanced-stat">STL</th><th class="advanced-stat">BLK</th>
-                        <th class="advanced-stat">3PM</th><th class="advanced-stat">TOV</th>
-                        <th class="advanced-stat">FP</th>
-                    </tr>
-                </thead>
-                <tbody>${playersHtml}</tbody>
-            </table>
-        </div>`;
+    return `<div class="team-box-score"><div class="team-header"><h3>${teamData.teamName} (${teamData.winProb}%)</h3></div><table class="daily-table"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th class="advanced-stat">STL</th><th class="advanced-stat">BLK</th></tr></thead><tbody>${playersHtml}</tbody></table></div>`;
 }
-
 
 // --- GRADE MODAL ---
 function showGradeOverlay(gameData) {
     const overlay = document.getElementById("grade-overlay");
     const modalContent = document.getElementById("grade-modal-content");
-    
-    modalContent.innerHTML = buildGradeModalHTML(gameData.grade);
-    overlay.classList.add("visible");
-    
-    const closeModal = () => overlay.classList.remove("visible");
-    overlay.querySelector(".modal-close").addEventListener("click", closeModal);
-    overlay.addEventListener("click", e => {
-        if (e.target === overlay) closeModal();
-    });
-}
-
-function createStatComparisonHTML(playerGrade) {
-    return ["PTS", "REB", "AST", "STL", "BLK"].map(stat => {
-        const pred = playerGrade.predicted[stat] || 0;
-        const actual = playerGrade.actual[stat] || 0;
-        const diff = actual - pred;
-        const diffSign = diff >= 0 ? "+" : "";
-        const diffClass = Math.abs(diff) > 2 ? 'negative' : 'positive';
-        
-        return `
-            <div class="stat-comparison-group">
-                <div class="stat-label">${stat}</div>
-                <div class="stat-row">
-                    <span class="stat-value-pred">${pred.toFixed(1)}</span>
-                    <span class="stat-value-actual">${actual.toFixed(1)}</span>
-                </div>
-                <div class="stat-diff ${diffClass}">${diffSign}${diff.toFixed(1)}</div>
-            </div>`;
-    }).join('');
+    if(overlay && modalContent) {
+        modalContent.innerHTML = buildGradeModalHTML(gameData.grade);
+        overlay.classList.add("visible");
+        const closeModal = () => overlay.classList.remove("visible");
+        overlay.querySelector(".modal-close")?.addEventListener("click", closeModal);
+        overlay.addEventListener("click", e => { if (e.target === overlay) closeModal(); });
+    }
 }
 
 function buildGradeModalHTML(grade) {
     const [team1, team2] = Object.keys(grade.gameSummary.predicted);
     const gradeClass = `grade-${grade.overallGrade.replace('+', '-plus')}`;
+    
+    const createStatComparisonHTML = (playerGrade) => {
+        return ["PTS", "REB", "AST", "STL", "BLK"].map(stat => {
+            const pred = playerGrade.predicted[stat] || 0;
+            const actual = playerGrade.actual[stat] || 0;
+            const diff = actual - pred;
+            const diffSign = diff >= 0 ? "+" : "";
+            const diffClass = Math.abs(diff) > 2 ? 'negative' : 'positive';
+            
+            return `
+                <div class="stat-comparison-group">
+                    <div class="stat-label">${stat}</div>
+                    <div class="stat-row">
+                        <span class="stat-value-pred">${pred.toFixed(1)}</span>
+                        <span class="stat-value-actual">${actual.toFixed(1)}</span>
+                    </div>
+                    <div class="stat-diff ${diffClass}">${diffSign}${diff.toFixed(1)}</div>
+                </div>`;
+        }).join('');
+    };
 
     return `
     <div class="grade-modal-inner">

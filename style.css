@@ -200,3 +200,110 @@ td.stat-cell { text-align: center; padding: 8px 10px; }
 .stat-diff.positive { color: var(--success-color); }
 .stat-diff.negative { color: var(--danger-color); }
 footer { text-align: center; margin: 40px 0 20px; color: var(--text-secondary); font-size: .9em; }
+/* style.css */
+/* Add these new styles to your existing upgraded CSS file */
+/* ... (all previous styles from v17.1 remain) ... */
+
+/* Player Links */
+.player-link {
+    font-weight: 700;
+    color: var(--primary-color);
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.player-link:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+}
+.player-unlinked {
+    font-weight: 700;
+    color: var(--text-primary);
+    cursor: default;
+}
+
+/* In-line Daily Grades */
+.inline-grade-cell {
+    text-align: right;
+}
+.inline-grade-pred {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+.inline-grade-actual {
+    font-weight: 700;
+    font-size: 1em;
+    margin-left: 4px;
+}
+.inline-grade-separator {
+    color: var(--text-secondary);
+    margin: 0 2px;
+}
+
+/* New Chart Container */
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+.chart-header h2 {
+    margin: 0;
+}
+.chart-wrapper {
+    position: relative;
+    height: 350px;
+}
+
+/* Player Profile Modal Specifics */
+.profile-modal-body {
+    padding: 25px;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 25px;
+}
+@media (max-width: 768px) { .profile-modal-body { grid-template-columns: 1fr; } }
+
+.profile-avatar {
+    background-color: var(--border-color);
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3em;
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
+.profile-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+.profile-info-item {
+    background-color: var(--bg-primary);
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+.profile-info-label {
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+.profile-info-value {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.profile-main-content h3 {
+    margin: 0 0 15px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
