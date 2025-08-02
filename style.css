@@ -1,4 +1,4 @@
-/* style.css (v26.0 - Definitive and Stable) */
+/* style.css (v23.3 - Final Definitive Version) */
 :root {
     --ease-out-cubic: cubic-bezier(0.215, 0.610, 0.355, 1);
     --font-sans: 'Inter', sans-serif;
@@ -26,7 +26,7 @@ main { max-width: 1600px; margin: 25px auto; padding: 0 30px; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .card { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 25px; box-shadow: var(--shadow); }
 .controls-card { margin-bottom: 25px; }
-.top-filters, .middle-filters { display: flex; gap: 20px; align-items: flex-end; margin-bottom: 25px; flex-wrap: wrap; }
+.top-filters { display: flex; gap: 20px; align-items: flex-end; margin-bottom: 25px; flex-wrap: wrap; }
 .filter-group label { display: block; font-size: .8em; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; text-transform: uppercase; }
 .filter-group select, .filter-group input { font-family: inherit; font-size: 1em; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--bg-primary); color: var(--text-primary); width: 100%; box-sizing: border-box; }
 .filter-group { flex: 1 1 180px; }
@@ -143,5 +143,5 @@ input:checked + .chart-toggle-slider:before { transform: translateX(24px); }
 .text-danger { color: var(--danger-color) !important; font-weight: bold; }
 
 /* --- Career Analysis Tab --- */
-#career-chart-wrapper { position: relative; height: 65vh; margin-top: 25px; }
+#career-chart-wrapper { position: relative; height: 70vh; margin-top: 25px; }
 footer { text-align: center; margin: 40px 0 20px; color: var(--text-secondary); font-size: .9em; }
