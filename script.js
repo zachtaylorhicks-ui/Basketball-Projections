@@ -1,4 +1,4 @@
-// script.js (v21.2 - Definitive Final Version)
+// script.js (v21.6 - Definitive Final Version)
 
 // --- GLOBAL STATE & CONFIGURATION ---
 let fullData = {};
@@ -239,6 +239,7 @@ function initializeDailyTab() {
     const sortedDates = fullData.dailyGamesByDate ? Object.keys(fullData.dailyGamesByDate).sort((a, b) => new Date(b) - new Date(a)) : [];
     if (!sortedDates.length) {
         document.getElementById("daily-games-container").innerHTML = '<div class="card"><p>No daily predictions available.</p></div>';
+        document.getElementById("accuracy-chart-container").style.display = 'none';
         return;
     }
     dateTabs.innerHTML = sortedDates.map((date, i) => `<button class="date-tab ${i === 0 ? 'active' : ''}" data-date="${date}">${new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</button>`).join('');
@@ -461,4 +462,80 @@ function createProgressionTable(title, players) {
             </div>
         </div>
     `;
+}
+function initializeCareerAnalysisTab() {
+    const controls = document.getElementById("career-controls");
+    controls?.addEventListener('change', renderCareerChart);
+    controls?.querySelector('#career-search-player').addEventListener('input', renderCareerChart);
+    renderCareerChart();
+}
+
+async function renderCareerChart() {
+    const chartWrapper = document.getElementById("career-chart-wrapper");
+    if (careerChartInstance) careerChartInstance.destroy();
+    chartWrapper.innerHTML = '<canvas id="career-chart"></canvas>'; // Reset canvas
+    const ctx = document.getElementById('career-chart').getContext('2d');
+
+    const careerData = await fetchSeasonData('career_data');
+    if (!careerData || !careerData.players) {
+        chartWrapper.innerHTML = `<p style="text-align:center; color: var(--danger-color);">Could not load career analysis data.</p>`;
+        return;
+    }
+
+    const stat = document.getElementById("career-stat-selector").value;
+    const xAxis = document.getElementById("career-xaxis-selector").value;
+    const searchTerm = document.getElementById("career-search-player").value.toLowerCase().trim();
+    
+    let highlightedPlayerId = null;
+    if (searchTerm) {
+        const foundPlayer = Object.entries(fullData.playerProfiles).find(([id, profile]) => profile.name.toLowerCase().includes(searchTerm));
+        if (foundPlayer) highlightedPlayerId = parseInt(foundPlayer[0], 10);
+    }
+    
+    const datasets = [];
+    
+    const allPlayersData = Object.entries(careerData.players).map(([id, data]) => {
+        return {
+            label: `Player ${id}`,
+            data: data.map(d => ({ x: d[xAxis], y: d[stat] })),
+            borderColor: parseInt(id) === highlightedPlayerId ? 'var(--warning-color)' : 'rgba(128, 128, 128, 0.1)',
+            borderWidth: parseInt(id) === highlightedPlayerId ? 3 : 1,
+            pointRadius: 0,
+            showLine: true,
+            order: parseInt(id) === highlightedPlayerId ? 0 : 1 // Render highlighted player on top
+        };
+    });
+    datasets.push(...allPlayersData);
+
+    if (highlightedPlayerId) {
+        const playerInfo = Object.values(await fetchSeasonData('actuals_2024_full_per_game') || []).find(p => p.personId === highlightedPlayerId);
+        if (playerInfo) {
+            const draftYearData = careerData.by_year[playerInfo.draftYear];
+            const draftPickData = careerData.by_pick[playerInfo.draftNumber];
+            const binSize = careerData.game_bin_size;
+            if(draftYearData) {
+                datasets.push({ label: `Avg. Draft Year ${playerInfo.draftYear}`, data: draftYearData.map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), borderColor: 'var(--success-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 2 });
+            }
+            if(draftPickData) {
+                datasets.push({ label: `Avg. Draft Pick #${playerInfo.draftNumber}`, data: draftPickData.map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), borderColor: 'var(--danger-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 3 });
+            }
+        }
+    }
+    
+    careerChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+            plugins: {
+                legend: { labels: { filter: item => !item.label.startsWith('Player') } },
+                decimation: { enabled: true, algorithm: 'lttb', samples: 150 },
+                tooltip: { enabled: true, mode: 'index', intersect: false }
+            },
+            scales: {
+                x: { type: 'linear', title: { display: true, text: xAxis === 'age' ? 'Player Age' : 'NBA Games Played' } },
+                y: { title: { display: true, text: `Monthly Average ${stat}` } }
+            }
+        }
+    });
 }
