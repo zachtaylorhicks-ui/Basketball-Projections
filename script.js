@@ -1,4 +1,4 @@
-// script.js (v22.0 - Definitive Restoration & Enhancement)
+// script.js (v23.0 - Definitive Polish & Feature Enhancement)
 
 // --- GLOBAL STATE & CONFIGURATION ---
 let fullData = {};
@@ -12,7 +12,7 @@ const STAT_CONFIG = {
     PTS: { name: "PTS", zKey: "z_PTS" }, REB: { name: "REB", zKey: "z_REB" }, AST: { name: "AST", zKey: "z_AST" }, STL: { name: "STL", zKey: "z_STL" }, BLK: { name: "BLK", zKey: "z_BLK" }, '3PM': { name: "3PM", zKey: "z_3PM" }, TOV: { name: "TOV", zKey: "z_TOV" }, FG_impact: { name: "FG%", zKey: "z_FG_impact" }, FT_impact: { name: "FT%", zKey: "z_FT_impact" }
 };
 const ALL_STAT_KEYS = ["PTS", "REB", "AST", "STL", "BLK", "3PM", "TOV", "FG_impact", "FT_impact"];
-const TEAM_ANALYSIS_STATS = ["GP", "MPG", "PTS", "REB", "AST"];
+const TEAM_ANALYSIS_STATS = ["GP", "MIN", "PTS", "REB", "AST"];
 
 // --- INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", async () => {
@@ -30,7 +30,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeCareerAnalysisTab();
 
         document.body.addEventListener('click', handlePlayerLinkClick);
-        // Set the first tab as active
         document.querySelector('.tab-link').click();
 
     } catch (e) {
@@ -88,16 +87,26 @@ async function showPlayerProfileOverlay(profile, personId) {
     overlay.classList.add("visible");
     
     const chartToggle = overlay.querySelector('#chart-toggle-checkbox');
-    const renderChart = () => {
-        if (chartToggle.checked) {
-             renderPlayerCareerCurveChart(personId);
+    const statlineToggle = overlay.querySelector('#statline-toggle-checkbox');
+
+    const renderContent = () => {
+        if (statlineToggle.checked) {
+            renderPlayerStatlineView(personId);
+            chartToggle.parentElement.parentElement.style.display = 'none'; // Hide chart toggle
         } else {
-             renderPlayerPerformanceHistoryChart(profile);
+            chartToggle.parentElement.parentElement.style.display = 'flex'; // Show chart toggle
+            if (chartToggle.checked) {
+                 renderPlayerCareerCurveChart(personId);
+            } else {
+                 renderPlayerPerformanceHistoryChart(profile);
+            }
         }
     };
     
-    renderChart(); // Initial render
-    chartToggle.addEventListener('change', renderChart);
+    renderContent(); // Initial render
+    chartToggle.addEventListener('change', renderContent);
+    statlineToggle.addEventListener('change', renderContent);
+
 
     const closeModal = () => {
         overlay.classList.remove("visible");
@@ -114,12 +123,25 @@ function buildPlayerProfileModalHTML(profile) {
     const wikiLink = profile.wikiUrl ? `<a href="${profile.wikiUrl}" target="_blank" rel="noopener noreferrer">View on Wikipedia</a>` : 'N/A';
     return `
     <div class="grade-modal player-modal">
-        <div class="modal-header"><h2>${profile.name}</h2><button class="modal-close">×</button></div>
+        <div class="modal-header">
+            <h2>${profile.name}</h2>
+            <div class="modal-toggles">
+                 <div class="chart-toggle">
+                    <span class="chart-toggle-label">Full Stat Line</span>
+                    <label class="chart-toggle-switch">
+                        <input type="checkbox" id="statline-toggle-checkbox">
+                        <span class="chart-toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            <button class="modal-close">×</button>
+        </div>
         <div class="player-profile-grid">
             <div class="profile-sidebar">
                 <div class="profile-info-grid">
                     <div class="profile-info-item"><div class="profile-info-label">Position</div><div class="profile-info-value">${profile.position || 'N/A'}</div></div>
                     <div class="profile-info-item"><div class="profile-info-label">Height</div><div class="profile-info-value">${profile.height || 'N/A'}</div></div>
+                    <div class="profile-info-item"><div class="profile-info-label">Weight</div><div class="profile-info-value">${profile.weight || 'N/A'}</div></div>
                     <div class="profile-info-item"><div class="profile-info-label">Team</div><div class="profile-info-value">${profile.team || 'N/A'}</div></div>
                     <div class="profile-info-item"><div class="profile-info-label">Draft Info</div><div class="profile-info-value">${profile.draftInfo || 'N/A'}</div></div>
                     <div class="profile-info-item"><div class="profile-info-label">External Link</div><div class="profile-info-value">${wikiLink}</div></div>
@@ -127,8 +149,8 @@ function buildPlayerProfileModalHTML(profile) {
             </div>
             <div class="profile-main">
                 <div class="profile-main-header">
-                    <h3 id="modal-chart-title">Performance History (Predicted vs Actual)</h3>
-                    <div class="chart-toggle">
+                    <h3 id="modal-chart-title">Performance History</h3>
+                     <div class="chart-toggle">
                         <span class="chart-toggle-label">Career Curve</span>
                         <label class="chart-toggle-switch">
                             <input type="checkbox" id="chart-toggle-checkbox">
@@ -140,6 +162,21 @@ function buildPlayerProfileModalHTML(profile) {
             </div>
         </div>
     </div>`;
+}
+
+function renderPlayerStatlineView(personId) {
+    document.getElementById('modal-chart-title').textContent = 'Historical Performance';
+    const container = document.getElementById('modal-chart-container');
+    if (modalChartInstance) modalChartInstance.destroy();
+    
+    // Placeholder for now. This can be built out to show a detailed table.
+    container.innerHTML = `
+        <div class="statline-placeholder">
+            <h3>Full Stat Line View</h3>
+            <p>This area will show a detailed table of historical stats for the player.</p>
+            <p>Data can be aggregated from all the historical files ('actuals_..._per_game.json').</p>
+        </div>
+    `;
 }
 
 function renderPlayerPerformanceHistoryChart(profile) {
@@ -230,7 +267,16 @@ function initializeSeasonTab() {
       .filter(key => key.includes('projections') || key.includes('actuals'))
       .map(key => key.replace(/_per_game|_total/g, ''))
       .filter((v, i, a) => a.indexOf(v) === i) // Unique keys
-      .sort((a,b) => b.localeCompare(a));
+      .sort((a,b) => {
+          const yearA = a.match(/\d{4}/);
+          const yearB = b.match(/\d{4}/);
+          if (yearA && yearB) {
+              if (yearB[0] !== yearA[0]) return yearB[0] - yearA[0];
+          }
+          if (a.includes('proj')) return -1; // Projections first
+          if (b.includes('proj')) return 1;
+          return b.localeCompare(a); // Then sort by rest of string (full, pre, post)
+      });
     
     selector.innerHTML = sources.map(key => `<option value="${key}">${manifest[key+'_per_game']?.label || key}</option>`).join('');
 
@@ -258,7 +304,7 @@ async function renderSeasonTable() {
     
     const data = await fetchSeasonData(sourceKey);
     if (!data) {
-        tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color: var(--danger-color);">Could not load data for this source. It may not exist for the selected calculation mode.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; color: var(--danger-color);">Could not load data for this source. It may not exist for the selected calculation mode.</td></tr>`;
         return;
     }
 
@@ -287,10 +333,6 @@ function handleSortSeason(e) {
         currentSort.direction = ["playerName", "pos", "team"].includes(sortKey) ? "asc" : "desc";
     }
     
-    // Visual indicator
-    document.querySelectorAll('#predictions-thead th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
-    th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
-
     sortSeasonData();
     renderSeasonTableBody(parseInt(document.getElementById("show-count").value, 10));
 }
@@ -317,11 +359,12 @@ function renderSeasonTableBody(showCount) {
             <th data-sort-key="team">Team</th>
             <th data-sort-key="GP">GP</th>
             <th data-sort-key="MIN">MPG</th>
-            ${ALL_STAT_KEYS.map(key => `<th data-sort-key="${STAT_CONFIG[key].zKey}">${STAT_CONFIG[key].name}</th>`).join('')}
+            ${ALL_STAT_KEYS.map(key => `<th data-sort-key="${key}">${STAT_CONFIG[key].name}</th>`).join('')}
             <th data-sort-key="custom_z_score">TOTAL</th>
         </tr>`;
 
     // Re-apply sort indicator
+    document.querySelectorAll('#predictions-thead th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
     const currentTh = thead.querySelector(`[data-sort-key="${currentSort.column}"]`);
     if(currentTh) currentTh.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
 
@@ -329,10 +372,11 @@ function renderSeasonTableBody(showCount) {
     const dataToRender = currentSort.data?.slice(0, showCount) || [];
     
     if (!dataToRender.length) {
-        tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">No players match criteria.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;">No players match criteria.</td></tr>`;
         return;
     }
     const getZClass = z => z >= 1.5 ? 'elite' : z >= 1.0 ? 'very-good' : z >= 0.5 ? 'good' : z <= -1.0 ? 'not-good' : z <= -0.5 ? 'below-average' : 'average';
+    const isTotalMode = document.getElementById("calculation-mode").value === 'total';
     
     tbody.innerHTML = dataToRender.map((p, i) => `
         <tr>
@@ -341,20 +385,21 @@ function renderSeasonTableBody(showCount) {
             <td>${p.pos || 'N/A'}</td>
             <td>${p.team || 'N/A'}</td>
             <td>${p.GP || 0}</td>
-            <td>${(p.MIN || 0).toFixed(1)}</td>
+            <td>${(isTotalMode ? p.MIN / (p.GP || 1) : p.MIN || 0).toFixed(1)}</td>
             ${ALL_STAT_KEYS.map(key => {
                 const zKey = STAT_CONFIG[key].zKey;
-                const value = p[key.replace('_impact', '')] || 0;
+                const rawKey = key.replace('_impact', '');
+                const value = p[rawKey] || 0;
                 const zValue = p[zKey] || 0;
+                const precision = key.includes('impact') ? 2 : (isTotalMode ? 0 : 1);
                 return `<td class="stat-cell ${getZClass(zValue)}">
-                    <span class="stat-value">${value.toFixed(key.includes('impact') ? 2 : 1)}</span>
+                    <span class="stat-value">${value.toFixed(precision)}</span>
                     <span class="z-score-value">${zValue.toFixed(2)}</span>
                 </td>`;
             }).join('')}
             <td>${p.custom_z_score.toFixed(2)}</td>
         </tr>`).join('');
 }
-
 
 // --- DAILY PROJECTIONS TAB ---
 function initializeDailyTab() {
@@ -387,6 +432,7 @@ function initializeDailyTab() {
     renderAccuracyChart();
     renderDailyGamesForDate(sortedDates[0]);
 }
+
 function renderDailyGamesForDate(date) {
     const container = document.getElementById("daily-games-container");
     const games = fullData.dailyGamesByDate?.[date] || [];
@@ -419,7 +465,7 @@ function renderDailyGamesForDate(date) {
 function createTeamTableHTML(teamData, gameGrade) {
     const isGraded = gameGrade?.isGraded;
     const getPerfIndicator = (pred, actual) => {
-        if (actual === undefined || actual === null) return '';
+        if (actual === undefined || actual === null || pred === undefined || pred === null) return '';
         const diff = Math.abs(pred - actual);
         const relativeError = diff / (actual || pred || 1);
         if (relativeError < 0.20) return 'pi-good';
@@ -433,43 +479,35 @@ function createTeamTableHTML(teamData, gameGrade) {
             const pId = p.personId || p.Player_ID;
             const actuals = isGraded ? gameGrade.playerActuals?.[pId] : null;
             const nameHtml = `<a href="#" class="player-link" data-person-id="${pId}">${p.Player_Name}</a>`;
-            const statsRow = (type, stats, isPred) => {
-                const pts = stats.points || stats.PTS || 0;
-                const reb = stats.reb || stats.REB || 0;
-                const ast = stats.ast || stats.AST || 0;
-                const stl = stats.stl || stats.STL || 0;
-                const blk = stats.blk || stats.BLK || 0;
-                
-                const indicator = (statName) => isPred || !isGraded || !actuals ? '' : `<span class="performance-indicator ${getPerfIndicator(p[statName.toLowerCase()], stats[statName.toUpperCase()])}"></span>`;
-
-                return `
-                    <td class="stat-type-cell">${type}</td>
-                    <td>${isPred ? (p.Predicted_Minutes || 0).toFixed(1) : '-'}</td>
-                    <td>${pts.toFixed(1)}${indicator('points')}</td>
-                    <td>${reb.toFixed(1)}${indicator('reb')}</td>
-                    <td>${ast.toFixed(1)}${indicator('ast')}</td>
-                    <td class="advanced-stat">${stl.toFixed(1)}${indicator('stl')}</td>
-                    <td class="advanced-stat">${blk.toFixed(1)}${indicator('blk')}</td>
-                `;
-            };
-
-            let rows = `<tr><td rowspan="${isGraded ? 2 : 1}" class="player-name-cell">${nameHtml}</td>${statsRow('P', p, true)}</tr>`;
-            if (isGraded) {
-                rows += `<tr>${actuals ? statsRow('A', actuals, false) : '<td colspan="7" style="text-align:center;">DNP</td>'}</tr>`;
-            }
-            return rows;
+            const predRow = `<tr class="player-row-pred">
+                <td rowspan="${isGraded ? 2 : 1}" class="player-name-cell">${nameHtml}</td>
+                <td class="stat-type-cell">P</td>
+                <td>${(p.Predicted_Minutes || 0).toFixed(1)}</td>
+                <td>${(p.points || 0).toFixed(1)}</td>
+                <td>${(p.reb || 0).toFixed(1)}</td>
+                <td>${(p.ast || 0).toFixed(1)}</td>
+            </tr>`;
+            const actualRow = isGraded && actuals ? `<tr class="player-row-actual">
+                <td class="stat-type-cell">A</td>
+                <td>-</td>
+                <td>${(actuals.PTS).toFixed(1)}<span class="performance-indicator ${getPerfIndicator(p.points, actuals.PTS)}"></span></td>
+                <td>${(actuals.REB).toFixed(1)}<span class="performance-indicator ${getPerfIndicator(p.reb, actuals.REB)}"></span></td>
+                <td>${(actuals.AST).toFixed(1)}<span class="performance-indicator ${getPerfIndicator(p.ast, actuals.AST)}"></span></td>
+            </tr>` : isGraded ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td colspan="4" style="text-align:center;">DNP</td></tr>` : '';
+            return predRow + actualRow;
         }).join('');
 
     return `<div class="team-box-score">
         <h3 class="team-header">${teamData.teamName}</h3>
         <table class="daily-table">
-            <thead><tr><th>Player</th><th></th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th class="advanced-stat">STL</th><th class="advanced-stat">BLK</th></tr></thead>
+            <thead><tr><th style="text-align:left;">Player</th><th></th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead>
             <tbody>${playersHtml}</tbody>
         </table>
     </div>`;
 }
 
 function renderAccuracyChart() {
+    // This function remains the same as v22.0
     const container = document.getElementById("accuracy-chart-container");
     if(!container) return;
     const chartCanvas = document.getElementById('accuracy-chart');
@@ -513,7 +551,6 @@ function renderAccuracyChart() {
     accuracyChartInstance = new Chart(ctx, { ...chartConfig, options: { ...chartConfig.options, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
 }
 
-
 // --- TEAM ANALYSIS TAB ---
 function initializeTeamAnalysisTab() {
     const selector = document.getElementById("team-analysis-source-selector");
@@ -536,12 +573,8 @@ async function renderTeamAnalysis() {
         container.innerHTML = '<div class="card"><p style="color:var(--danger-color)">Could not load data for this source.</p></div>';
         return;
     }
-    const dataWithZ = data.map(player => ({
-        ...player,
-        custom_z_score: ALL_STAT_KEYS.reduce((acc, key) => acc + (player[STAT_CONFIG[key].zKey] || 0), 0)
-    }));
     
-    const teams = dataWithZ.reduce((acc, p) => {
+    const teams = data.reduce((acc, p) => {
         const teamName = p.team || 'Free Agents';
         (acc[teamName] = acc[teamName] || []).push(p);
         return acc;
@@ -550,22 +583,22 @@ async function renderTeamAnalysis() {
     container.innerHTML = Object.entries(teams).sort(([teamA], [teamB]) => {
         if(teamA === 'Free Agents') return 1;
         if(teamB === 'Free Agents') return -1;
-        const strengthA = teams[teamA].reduce((s,p) => s + p.custom_z_score, 0);
-        const strengthB = teams[teamB].reduce((s,p) => s + p.custom_z_score, 0);
+        const strengthA = teams[teamA].reduce((s,p) => s + (p.z_value || 0), 0);
+        const strengthB = teams[teamB].reduce((s,p) => s + (p.z_value || 0), 0);
         return strengthB - strengthA;
     }).map(([teamName, players]) => {
-        const teamStrength = players.reduce((sum, p) => sum + p.custom_z_score, 0);
-        const playerRows = players.sort((a,b) => b.custom_z_score - a.custom_z_score).map(p => `
+        const teamStrength = players.reduce((sum, p) => sum + (p.z_value || 0), 0);
+        const playerRows = players.sort((a,b) => (b.z_value || 0) - (a.z_value || 0)).map(p => `
             <tr>
                 <td><a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName}</a></td>
                 ${TEAM_ANALYSIS_STATS.map(stat => `<td>${(p[stat] || 0).toFixed(stat === 'GP' ? 0 : 1)}</td>`).join('')}
                 <td>${p.custom_z_score.toFixed(2)}</td>
             </tr>`).join('');
         return `<div class="team-card">
-            <div class="team-card-header"><h3>${teamName}</h3><div class="team-strength-score">${teamStrength.toFixed(2)}</div></div>
+            <div class="team-card-header"><h3>${teamName}</h3><div class="team-strength-score">${(teamStrength / 100).toFixed(2)}</div></div>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>Player</th>${TEAM_ANALYSIS_STATS.map(s => `<th>${s}</th>`).join('')}<th>Score</th></tr></thead>
+                    <thead><tr><th>Player</th>${TEAM_ANALYSIS_STATS.map(s => `<th>${s.replace('MIN', 'MPG')}</th>`).join('')}<th>Z-Score</th></tr></thead>
                     <tbody>${playerRows}</tbody>
                 </table>
             </div>
@@ -573,14 +606,13 @@ async function renderTeamAnalysis() {
     }).join('');
 }
 
-
 // --- PLAYER PROGRESSION TAB ---
 async function initializePlayerProgressionTab() {
     const container = document.getElementById("player-progression-container");
-    container.innerHTML = '<div class="card"><p>Loading player progression data...</p></div>';
+    container.innerHTML = '<div class="card" style="padding:20px; text-align:center;">Loading player progression data...</div>';
     const data = await fetchSeasonData('progression');
     if (!data) {
-        container.innerHTML = '<div class="card"><p style="color:var(--danger-color)">Could not load progression data.</p></div>';
+        container.innerHTML = '<div class="card" style="padding:20px; text-align:center; color:var(--danger-color)">Could not load progression data.</div>';
         return;
     }
     
@@ -641,8 +673,12 @@ async function renderCareerChart() {
     
     let highlightedPlayerId = null;
     if (searchTerm) {
-        const foundPlayer = Object.entries(fullData.playerProfiles).find(([id, profile]) => profile.name.toLowerCase().includes(searchTerm));
-        if (foundPlayer) highlightedPlayerId = parseInt(foundPlayer[0], 10);
+        const foundPlayer = Object.values(fullData.playerProfiles).find(profile => profile.name.toLowerCase().includes(searchTerm));
+        if (foundPlayer) {
+            // Need to find the ID from the profile name
+             const entry = Object.entries(fullData.playerProfiles).find(([id, profile]) => profile.name === foundPlayer.name);
+             if (entry) highlightedPlayerId = parseInt(entry[0], 10);
+        }
     }
     
     const datasets = [];
@@ -655,24 +691,20 @@ async function renderCareerChart() {
             borderWidth: isHighlighted ? 3 : 1,
             pointRadius: 0,
             showLine: true,
-            order: isHighlighted ? 0 : 1 // Render highlighted player on top
+            order: isHighlighted ? 0 : 1
         };
     });
     datasets.push(...allPlayersData);
 
     if (highlightedPlayerId) {
-        // Fetch last full season data to get draft info
-        const playerInfoFromHist = (await fetchSeasonData('actuals_2024_full_per_game'))?.find(p => p.personId === highlightedPlayerId);
         const playerProfile = fullData.playerProfiles[highlightedPlayerId];
-
-        if (playerInfoFromHist && playerProfile) {
-            // Attempt to get draft year/number from profile if available, fallback to historical
+        if (playerProfile) {
             const draftInfoStr = playerProfile.draftInfo || '';
-            const draftYearMatch = draftInfoStr.match(/(\d{4}) \/ Round/);
-            const draftPickMatch = draftInfoStr.match(/Pick (\d+)/);
+            const draftYearMatch = draftInfoStr.match(/(\d{4})/);
+            const draftPickMatch = draftInfoStr.match(/(\d+)(st|nd|rd|th) pick/);
             
-            const draftYear = draftYearMatch ? parseInt(draftYearMatch[1]) : playerInfoFromHist.draftYear;
-            const draftNumber = draftPickMatch ? parseInt(draftPickMatch[1]) : playerInfoFromHist.draftNumber;
+            const draftYear = draftYearMatch ? parseInt(draftYearMatch[1]) : null;
+            const draftNumber = draftPickMatch ? parseInt(draftPickMatch[1]) : null;
             
             const binSize = careerData.game_bin_size;
 
