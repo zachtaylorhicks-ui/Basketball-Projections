@@ -60,6 +60,16 @@
                         <input type="text" id="search-player" placeholder="e.g., Nikola Jokic">
                     </div>
                 </div>
+                 <div class="middle-filters">
+                    <div class="filter-group">
+                        <label for="filter-position">POSITION</label>
+                        <select id="filter-position"></select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-draft-year">DRAFT YEAR</label>
+                        <select id="filter-draft-year"></select>
+                    </div>
+                </div>
                 <div class="bottom-controls">
                     <div class="category-weights-container">
                         <p class="weights-title"><strong>Customize Rankings:</strong> Uncheck a category to "punt" it.</p>
@@ -141,18 +151,33 @@
                             <option value="AST">Assists</option>
                             <option value="STL">Steals</option>
                             <option value="BLK">Blocks</option>
+                             <option value="MIN">Minutes</option>
                         </select>
                     </div>
                     <div class="filter-group">
                         <label for="career-xaxis-selector">X-AXIS</label>
                         <select id="career-xaxis-selector">
-                            <option value="x_games" selected>Games Played</option>
+                            <option value="game_bin" selected>Games Played</option>
                             <option value="age">Player Age</option>
                         </select>
                     </div>
                     <div class="filter-group search-group">
                         <label for="career-search-player">HIGHLIGHT PLAYER</label>
                         <input type="text" id="career-search-player" placeholder="e.g., LeBron James">
+                    </div>
+                </div>
+                <div class="middle-filters">
+                    <div class="filter-group">
+                        <label for="career-comparison-group">COMPARISON GROUP</label>
+                        <select id="career-comparison-group">
+                            <option value="none">None</option>
+                            <option value="by_position">By Position</option>
+                            <option value="by_draft_year">By Draft Year</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="career-comparison-value">VALUE</label>
+                        <select id="career-comparison-value" disabled></select>
                     </div>
                 </div>
             </div>
