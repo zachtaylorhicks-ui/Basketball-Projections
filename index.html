@@ -27,6 +27,8 @@
         <button class="tab-link active" onclick="openTab(event, 'Season')">Season-Long Rankings</button>
         <button class="tab-link" onclick="openTab(event, 'Daily')">Daily Game Projections</button>
         <button class="tab-link" onclick="openTab(event, 'TeamAnalysis')">Team Analysis</button>
+        <button class="tab-link" onclick="openTab(event, 'PlayerProgression')">Player Progression</button>
+        <button class="tab-link" onclick="openTab(event, 'CareerAnalysis')">Player Career Analysis</button>
     </div>
 
     <main>
@@ -114,18 +116,48 @@
                     </div>
                 </div>
             </div>
-            <div id="team-analysis-container">
-                <div class="card"><p>Loading team data...</p></div>
+            <div id="team-analysis-container"></div>
+        </div>
+
+        <div id="PlayerProgression" class="tab-content">
+            <div id="player-progression-container"></div>
+        </div>
+        
+        <div id="CareerAnalysis" class="tab-content">
+            <div id="career-controls" class="controls-card">
+                <div class="top-filters">
+                    <div class="filter-group">
+                        <label for="career-stat-selector">STATISTIC</label>
+                        <select id="career-stat-selector">
+                            <option value="PTS" selected>Points</option>
+                            <option value="REB">Rebounds</option>
+                            <option value="AST">Assists</option>
+                            <option value="STL">Steals</option>
+                            <option value="BLK">Blocks</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="career-xaxis-selector">X-AXIS</label>
+                        <select id="career-xaxis-selector">
+                            <option value="x_games" selected>Games Played</option>
+                            <option value="age">Player Age</option>
+                        </select>
+                    </div>
+                    <div class="filter-group search-group">
+                        <label for="career-search-player">HIGHLIGHT PLAYER</label>
+                        <input type="text" id="career-search-player" placeholder="e.g., LeBron James">
+                    </div>
+                </div>
+            </div>
+            <div id="career-chart-wrapper" class="card">
+                <canvas id="career-chart"></canvas>
             </div>
         </div>
+
     </main>
 
     <div id="player-profile-overlay" class="grade-overlay">
         <!-- Player profile modal content will be injected here -->
-    </div>
-    
-    <div id="grade-overlay" class="grade-overlay">
-       <!-- Game grade modal content will be injected here -->
     </div>
     
     <footer>
