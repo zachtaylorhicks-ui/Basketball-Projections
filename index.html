@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
     <header>
@@ -25,6 +26,7 @@
     <div class="tabs">
         <button class="tab-link active" onclick="openTab(event, 'Season')">Season-Long Rankings</button>
         <button class="tab-link" onclick="openTab(event, 'Daily')">Daily Game Projections</button>
+        <button class="tab-link" onclick="openTab(event, 'TeamAnalysis')">Team Analysis</button>
     </div>
 
     <main>
@@ -34,20 +36,6 @@
                     <div class="filter-group">
                         <label for="data-source-selector">DATA SOURCE</label>
                         <select id="data-source-selector"></select>
-                    </div>
-                    <div class="filter-group" id="game-type-filter-group" style="display: none;">
-                        <label for="game-type-selector">GAME TYPE</label>
-                        <select id="game-type-selector">
-                            <option value="regularseason" selected>Regular Season</option>
-                            <option value="preseason">Preseason</option>
-                        </select>
-                    </div>
-                    <div class="filter-group" id="calc-mode-filter-group" style="display: none;">
-                        <label for="calc-mode-selector">CALCULATION MODE</label>
-                        <select id="calc-mode-selector">
-                            <option value="per_game" selected>Per-Game Averages</option>
-                            <option value="totals">Season Totals</option>
-                        </select>
                     </div>
                     <div class="filter-group">
                         <label for="show-count">SHOW</label>
@@ -97,12 +85,12 @@
                     <div class="filter-group">
                         <label for="accuracy-metric-selector">CHART METRIC</label>
                         <select id="accuracy-metric-selector">
-                            <option value="PTS" selected>Points MAE</option>
+                            <option value="cumulativeWinLoss" selected>Cumulative W/L Record</option>
+                            <option value="dailyWinLoss">Daily W/L Accuracy (%)</option>
+                            <option value="scoreCloseness">Game Score Closeness (Abs. Diff)</option>
+                            <option value="PTS">Points MAE</option>
                             <option value="REB">Rebounds MAE</option>
                             <option value="AST">Assists MAE</option>
-                            <option value="STL">Steals MAE</option>
-                            <option value="BLK">Blocks MAE</option>
-                            <option value="scoreDifference">Total Score Difference</option>
                         </select>
                     </div>
                 </div>
@@ -116,14 +104,28 @@
             </div>
             <div id="daily-games-container"></div>
         </div>
+        
+        <div id="TeamAnalysis" class="tab-content">
+            <div class="controls-card">
+                <div class="top-filters">
+                    <div class="filter-group">
+                        <label for="team-analysis-source-selector">DATA SOURCE</label>
+                        <select id="team-analysis-source-selector"></select>
+                    </div>
+                </div>
+            </div>
+            <div id="team-analysis-container">
+                <div class="card"><p>Loading team data...</p></div>
+            </div>
+        </div>
     </main>
 
     <div id="player-profile-overlay" class="grade-overlay">
-        <div id="player-profile-modal-content" class="grade-modal"></div>
+        <!-- Player profile modal content will be injected here -->
     </div>
     
     <div id="grade-overlay" class="grade-overlay">
-        <div id="grade-modal-content" class="grade-modal"></div>
+       <!-- Game grade modal content will be injected here -->
     </div>
     
     <footer>
