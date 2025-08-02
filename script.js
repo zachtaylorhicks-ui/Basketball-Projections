@@ -1,4 +1,4 @@
-// script.js (v21.0 - Career Analysis Edition)
+// script.js (v21.2 - Definitive Final Version)
 
 // --- GLOBAL STATE & CONFIGURATION ---
 let fullData = {};
@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         initializeDailyTab();
         initializeTeamAnalysisTab();
         initializePlayerProgressionTab();
-        initializeCareerAnalysisTab(); // New tab
+        initializeCareerAnalysisTab();
 
         document.body.addEventListener('click', handlePlayerLinkClick);
     } catch (e) {
@@ -144,141 +144,7 @@ async function fetchSeasonData(key) {
     } catch (e) { console.error(e); return null; }
 }
 
-
-// --- SEASON-LONG, DAILY, TEAM, PROGRESSION TABS (Functions unchanged from v20.3, placed at end for clarity) ---
-
-// --- NEW: PLAYER CAREER ANALYSIS TAB ---
-function initializeCareerAnalysisTab() {
-    const controls = document.getElementById("career-controls");
-    controls?.addEventListener('change', renderCareerChart);
-    controls?.querySelector('#career-search-player').addEventListener('input', renderCareerChart);
-    renderCareerChart();
-}
-
-async function renderCareerChart() {
-    const chartWrapper = document.getElementById("career-chart-wrapper");
-    if (careerChartInstance) careerChartInstance.destroy();
-    chartWrapper.innerHTML = '<canvas id="career-chart"></canvas>'; // Reset canvas
-    const ctx = document.getElementById('career-chart').getContext('2d');
-
-    const careerData = await fetchSeasonData('career_data');
-    if (!careerData) {
-        chartWrapper.innerHTML = `<p style="text-align:center; color: var(--danger-color);">Could not load career analysis data.</p>`;
-        return;
-    }
-
-    const stat = document.getElementById("career-stat-selector").value;
-    const xAxis = document.getElementById("career-xaxis-selector").value;
-    const searchTerm = document.getElementById("career-search-player").value.toLowerCase().trim();
-    
-    let highlightedPlayerId = null;
-    if (searchTerm) {
-        const foundPlayer = Object.entries(fullData.playerProfiles).find(([id, profile]) => profile.name.toLowerCase().includes(searchTerm));
-        if (foundPlayer) highlightedPlayerId = parseInt(foundPlayer[0], 10);
-    }
-    
-    const datasets = [];
-    
-    // 1. All other players (the "cloud")
-    const allPlayersData = Object.entries(careerData.players).flatMap(([id, data]) => {
-        if (parseInt(id) === highlightedPlayerId) return []; // Exclude highlighted player from cloud
-        return {
-            label: `Player ${id}`,
-            data: data.map(d => ({ x: d[xAxis], y: d[stat] })),
-            borderColor: 'rgba(128, 128, 128, 0.1)',
-            borderWidth: 1,
-            pointRadius: 0,
-            showLine: true
-        };
-    });
-    datasets.push(...allPlayersData);
-
-    // 2. Highlighted Player
-    if (highlightedPlayerId && careerData.players[highlightedPlayerId]) {
-        datasets.push({
-            label: fullData.playerProfiles[highlightedPlayerId].name,
-            data: careerData.players[highlightedPlayerId].map(d => ({ x: d[xAxis], y: d[stat] })),
-            borderColor: 'var(--warning-color)',
-            backgroundColor: 'var(--warning-color)',
-            borderWidth: 3,
-            pointRadius: 2,
-            showLine: true
-        });
-    }
-
-    // 3. Comparison lines (if player is highlighted)
-    if (highlightedPlayerId) {
-        const profile = Object.values(await fetchSeasonData('actuals_2024_full_per_game'))
-            .find(p => p.personId === highlightedPlayerId) || {};
-            
-        const draftYearData = careerData.by_year[profile.draftYear];
-        const draftPickData = careerData.by_pick[profile.pickOverall];
-        const binSize = careerData.game_bin_size;
-
-        if(draftYearData) {
-             datasets.push({
-                label: `Avg. Draft Year ${profile.draftYear}`,
-                data: draftYearData.map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })),
-                borderColor: 'var(--success-color)',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                pointRadius: 0,
-                showLine: true
-            });
-        }
-        if(draftPickData) {
-             datasets.push({
-                label: `Avg. Draft Pick #${profile.pickOverall}`,
-                data: draftPickData.map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })),
-                borderColor: 'var(--danger-color)',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                pointRadius: 0,
-                showLine: true
-            });
-        }
-    }
-    
-    careerChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: { datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false, // Performance improvement
-            parsing: false, // Performance improvement
-            plugins: {
-                legend: {
-                    labels: {
-                        // Only show labels for non-cloud datasets
-                        filter: item => !item.borderColor.startsWith('rgba')
-                    }
-                },
-                decimation: { // Performance improvement
-                    enabled: true,
-                    algorithm: 'lttb',
-                    samples: 100,
-                },
-                tooltip: {
-                    enabled: false // Disable default tooltip for performance
-                }
-            },
-            scales: {
-                x: {
-                    type: 'linear',
-                    title: { display: true, text: xAxis === 'age' ? 'Player Age' : 'NBA Games Played' }
-                },
-                y: {
-                    title: { display: true, text: `Monthly Average ${stat}` }
-                }
-            }
-        }
-    });
-}
-
-
-// --- UNCHANGED FUNCTIONS FROM v20.3 (for completeness) ---
-
+// --- SEASON-LONG RANKINGS TAB ---
 function initializeSeasonTab() {
     const selector = document.getElementById("data-source-selector");
     selector.innerHTML = Object.entries(fullData.seasonLongDataManifest)
@@ -366,6 +232,7 @@ function renderSeasonTableBody(showCount) {
         </tr>`).join('');
 }
 
+// --- DAILY PROJECTIONS TAB ---
 function initializeDailyTab() {
     document.getElementById("accuracy-metric-selector")?.addEventListener('change', renderAccuracyChart);
     const dateTabs = document.getElementById("daily-date-tabs");
