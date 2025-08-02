@@ -1,4 +1,4 @@
-// script.js (v20.1 - Final)
+// script.js (v20.2 - Final Polish)
 
 // --- GLOBAL STATE & CONFIGURATION ---
 let fullData = {};
@@ -6,7 +6,9 @@ let loadedSeasonDataCache = {};
 let currentSort = { column: "custom_z_score", direction: "desc" };
 let accuracyChartInstance = null;
 const STAT_CONFIG = { PTS: { zKey: "z_PTS" }, REB: { zKey: "z_REB" }, AST: { zKey: "z_AST" }, STL: { zKey: "z_STL" }, BLK: { zKey: "z_BLK" }, '3PM': { zKey: "z_3PM" }, TOV: { zKey: "z_TOV" }, FG_impact: { name: "FG% Impact", zKey: "z_FG_impact" }, FT_impact: { name: "FT% Impact", zKey: "z_FT_impact" } };
-const STAT_KEYS = ["PTS", "REB", "AST", "STL", "BLK", "3PM", "TOV"];
+const STAT_KEYS_MAIN = ["PTS", "REB", "AST", "STL", "BLK", "3PM", "TOV"];
+const STAT_KEYS_IMPACT = ["FG_impact", "FT_impact"];
+const ALL_STAT_KEYS = [...STAT_KEYS_MAIN, ...STAT_KEYS_IMPACT];
 
 // --- INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", async () => {
@@ -58,13 +60,15 @@ function handlePlayerLinkClick(e) {
     
     let playerHistory = [];
     if (fullData.dailyGamesByDate) {
-         playerHistory = Object.values(fullData.dailyGamesByDate).flat()
+         playerHistory = Object.entries(fullData.dailyGamesByDate).flatMap(([date, games]) => 
+            games.map(game => ({...game, date})) // Add date to each game
+         )
             .filter(game => game.grade?.isGraded)
             .map(game => {
                 const playerProj = game.projections.flatMap(p => p.players).find(p => (p.Player_ID || p.personId) === personId);
                 const playerActual = game.grade.playerActuals?.[personId];
                 if (playerProj && playerActual) {
-                    return { date: game.date || game.grade.date, predicted: playerProj, actual: playerActual };
+                    return { date: game.date, predicted: playerProj, actual: playerActual };
                 }
                 return null;
             }).filter(Boolean);
@@ -152,7 +156,7 @@ function initializeSeasonTab() {
         .map(([key, { label }]) => `<option value="${key}">${label}</option>`).join('');
     
     const catGrid = document.getElementById("category-weights-grid");
-    catGrid.innerHTML = [...STAT_KEYS, 'FG_impact', 'FT_impact'].map(key => `
+    catGrid.innerHTML = ALL_STAT_KEYS.map(key => `
         <div class="category-item"><label><input type="checkbox" data-key="${key}" checked> ${STAT_CONFIG[key].name || key}</label></div>
     `).join('');
 
@@ -219,25 +223,39 @@ function sortSeasonData() {
 }
 
 function renderSeasonTableBody(showCount) {
+    const thead = document.getElementById("predictions-thead");
     const tbody = document.getElementById("predictions-tbody");
     const dataToRender = currentSort.data?.slice(0, showCount) || [];
+
+    const headerRow = `<tr>
+        <th data-sort-key="rank">R#</th>
+        <th data-sort-key="playerName">PLAYER</th>
+        <th data-sort-key="pos">POS</th>
+        <th data-sort-key="team">TEAM</th>
+        <th data-sort-key="GP">GP</th>
+        <th data-sort-key="MIN">MPG</th>
+        ${STAT_KEYS_MAIN.map(k => `<th data-sort-key="${k}">${k}</th>`).join('')}
+        <th data-sort-key="FG_impact">FG%</th>
+        <th data-sort-key="FT_impact">FT%</th>
+        <th data-sort-key="custom_z_score">TOTAL</th>
+    </tr>`;
+    thead.innerHTML = headerRow;
+    
     if (!dataToRender.length) {
         tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">No players match your criteria.</td></tr>`;
         return;
     }
+
     const getVal = (p, c) => p[c] ?? p[c.toLowerCase()] ?? 0;
     const getZClass = z => z >= 1.5 ? 'elite' : z >= 1 ? 'very-good' : z >= 0.5 ? 'good' : z <= -1 ? 'not-good' : z <= -0.5 ? 'below-average' : 'average';
     
-    const headerRow = `<tr><th>R#</th><th>PLAYER</th><th>POS</th><th>TEAM</th><th>GP</th><th>MPG</th>${STAT_KEYS.map(k => `<th>${k}</th>`).join('')}<th>FG%</th><th>FT%</th><th>TOTAL</th></tr>`;
-    document.getElementById("predictions-thead").innerHTML = headerRow;
-
     tbody.innerHTML = dataToRender.map((p, i) => {
         const nameHtml = `<a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName || 'N/A'}</a>`;
-        const statCells = STAT_KEYS.map(key => {
+        const statCells = STAT_KEYS_MAIN.map(key => {
             const zKey = STAT_CONFIG[key].zKey;
             return `<td class="stat-cell"><div class="color-cell-bg ${getZClass(p[zKey])}"><span class="stat-value">${getVal(p, key).toFixed(1)}</span><span class="z-score-value">${(p[zKey] || 0).toFixed(2)}</span></div></td>`;
         }).join('');
-        const impactCells = ['FG_impact', 'FT_impact'].map(key => {
+        const impactCells = STAT_KEYS_IMPACT.map(key => {
              const zKey = STAT_CONFIG[key].zKey;
              return `<td class="stat-cell"><div class="color-cell-bg ${getZClass(p[zKey])}"><span class="stat-value">${getVal(p, key).toFixed(2)}</span><span class="z-score-value">${(p[zKey] || 0).toFixed(2)}</span></div></td>`;
         }).join('');
@@ -263,9 +281,6 @@ function initializeDailyTab() {
             renderDailyGamesForDate(tab.dataset.date);
         }
     });
-    document.getElementById("daily-games-container").addEventListener("click", (e) => {
-        if (e.target.id === 'toggle-advanced-stats') e.currentTarget.classList.toggle("show-advanced")
-    });
     document.getElementById("daily-controls").addEventListener('click', e => {
         if(e.target.id === 'toggle-advanced-stats') document.getElementById('daily-games-container').classList.toggle('show-advanced');
     });
@@ -280,7 +295,9 @@ function renderDailyGamesForDate(date) {
         const [team1, team2] = game.projections;
         let scoreHTML = `Predicted: <strong>${team1.totalPoints}-${team2.totalPoints}</strong>`;
         if (game.grade?.isGraded) {
-            scoreHTML += ` | Actual: <strong class="actual-score">${game.grade.gameSummary.actual[team1.teamName]}-${game.grade.gameSummary.actual[team2.teamName]}</strong>`;
+            const actual1 = game.grade.gameSummary.actual[team1.teamName];
+            const actual2 = game.grade.gameSummary.actual[team2.teamName];
+            scoreHTML += ` | Actual: <strong class="actual-score">${actual1}-${actual2}</strong>`;
         }
         return `
         <div class="matchup-card">
@@ -416,7 +433,7 @@ async function renderTeamAnalysis() {
     
     const dataWithZ = data.map(player => {
         let customZScore = 0;
-        STAT_KEYS.forEach(key => { customZScore += player[STAT_CONFIG[key].zKey] || 0; });
+        STAT_KEYS_MAIN.forEach(key => { customZScore += player[STAT_CONFIG[key].zKey] || 0; });
         return { ...player, custom_z_score: customZScore };
     });
 
