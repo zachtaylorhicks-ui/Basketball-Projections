@@ -40,6 +40,13 @@
                         <select id="data-source-selector"></select>
                     </div>
                     <div class="filter-group">
+                        <label for="calculation-mode">CALCULATION MODE</label>
+                        <select id="calculation-mode">
+                           <option value="per_game" selected>Per Game</option>
+                           <option value="total">Total</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <label for="show-count">SHOW</label>
                         <select id="show-count">
                             <option value="50">Top 50</option>
@@ -72,8 +79,7 @@
                 </div>
             </div>
             <div class="table-container card">
-                <div id="loading-message">Loading player data...</div>
-                <table id="predictions-table" style="display:none;">
+                <table id="predictions-table">
                     <thead id="predictions-thead"></thead>
                     <tbody id="predictions-tbody"></tbody>
                 </table>
@@ -120,7 +126,9 @@
         </div>
 
         <div id="PlayerProgression" class="tab-content">
-            <div id="player-progression-container"></div>
+            <div id="player-progression-container" class="progression-grid">
+                 <!-- JS will inject "Risers" and "Fallers" cards here -->
+            </div>
         </div>
         
         <div id="CareerAnalysis" class="tab-content">
@@ -157,7 +165,7 @@
     </main>
 
     <div id="player-profile-overlay" class="grade-overlay">
-        <!-- Player profile modal content will be injected here -->
+        <!-- Player profile modal content will be injected here by JS -->
     </div>
     
     <footer>
