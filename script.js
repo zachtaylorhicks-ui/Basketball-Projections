@@ -385,10 +385,9 @@ function sortSeasonData() {
 
 function renderSeasonTableBody(showCount) {
     const thead = document.getElementById("predictions-thead");
-    // Update the sorting keys in the HTML table header to match the JS keys
-    thead.innerHTML = `<tr><th>R#</th><th data-sort-key="playerName">Player</th><th data-sort-key="position">Pos</th><th data-sort-key="team">Team</th><th data-sort-key="GP">GP</th><th data-sort-key="MIN">MPG</th>${ALL_STAT_KEYS.map(k=>`<th data-sort-key="${STAT_CONFIG[k].zKey}">${STAT_CONFIG[k].name}</th>`).join('')}<th data-sort-key="custom_z_score">TOTAL▼</th></tr>`;
+    // Update header to match what the JS expects
+    thead.innerHTML = `<tr><th>R#</th><th data-sort-key="playerName">Player</th><th data-sort-key="position">Pos</th><th data-sort-key="team">Team</th><th data-sort-key="GP">GP</th><th data-sort-key="MIN">MPG</th>${ALL_STAT_KEYS.map(k=>`<th data-sort-key="${k}">${STAT_CONFIG[k].name}</th>`).join('')}<th data-sort-key="custom_z_score">TOTAL</th></tr>`;
 
-    // Highlight the currently sorted column
     document.querySelectorAll('#predictions-thead th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
     const currentTh = thead.querySelector(`[data-sort-key="${currentSort.column}"]`);
     if(currentTh) currentTh.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
@@ -401,10 +400,8 @@ function renderSeasonTableBody(showCount) {
     const isTotalMode = document.getElementById("calculation-mode").value === 'total';
     
     tbody.innerHTML = dataToRender.map((p, i) => {
-        const gp = p.GP || 1;
-        // Check if MIN is total minutes (avg > 100) and if we should display per-game or total
-        const mpg = p.MIN || 0;
-        const displayedMpg = (isTotalMode && mpg > 100) ? (mpg / gp) : mpg;
+        // Correctly calculate MPG regardless of mode
+        const mpg = (p.MIN || 0) / (isTotalMode && p.GP > 0 ? p.GP : 1);
 
         return `
         <tr>
@@ -412,31 +409,26 @@ function renderSeasonTableBody(showCount) {
             <td><a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName || 'N/A'}</a></td>
             <td>${p.position || 'N/A'}</td>
             <td>${p.team || 'N/A'}</td>
-            <td>${gp}</td>
-            <td>${displayedMpg.toFixed(1)}</td>
+            <td>${p.GP || 0}</td>
+            <td>${mpg.toFixed(1)}</td>
 
             ${ALL_STAT_KEYS.map(key => {
                 const zKey = STAT_CONFIG[key].zKey;
                 const zValue = p[zKey] || 0;
                 let displayValue;
-                const rawKey = key.replace('_impact', '');
-                const value = p[rawKey] || 0;
-
-                if (key.includes('_impact')) {
-                    // Use FGM/A or FT/A if they exist, otherwise use the stored percentage
-                    const made = key === 'FG_impact' ? p.FGM : p.FTM;
-                    const att = key === 'FG_impact' ? p.FGA : p.FTA;
-                    const pctKey = key === 'FG_impact' ? 'FG_pct' : 'FT_pct';
-                    displayValue = p[att] !== undefined && att > 0 ? (made / att).toFixed(3) : (p[pctKey] || 0).toFixed(3);
+                
+                if (key === 'FG_impact') {
+                    displayValue = p.FGA > 0 ? (p.FGM / p.FGA).toFixed(3) : '0.000';
+                } else if (key === 'FT_impact') {
+                    displayValue = p.FTA > 0 ? (p.FTM / p.FTA).toFixed(3) : '0.000';
                 } else {
-                    // Display the stat. If total mode, it's already a total. 
-                    // If per-game mode, it's already per-game.
-                    displayValue = value.toFixed(isTotalMode ? 0 : 1);
+                    const rawKey = key.replace('_impact', '');
+                    displayValue = (p[rawKey] || 0).toFixed(isTotalMode ? 0 : 1);
                 }
                 
                 return `<td class="stat-cell ${getZClass(zValue)}"><span class="stat-value">${displayValue}</span><span class="z-score-value">${zValue.toFixed(2)}</span></td>`;
             }).join('')}
-            <td>${p.custom_z_score_display.toFixed(2)}</td>
+            <td>${(p.custom_z_score || 0).toFixed(2)}</td>
         </tr>`
     }).join('');
 }
@@ -558,6 +550,7 @@ async function renderTeamAnalysis() {
     
     const teams = data.reduce((acc, p) => { (acc[p.team || 'FA'] = acc[p.team || 'FA'] || []).push(p); return acc; }, {});
     
+    // FIX: Use 'custom_z_score' instead of 'z_value'
     container.innerHTML = Object.entries(teams).sort(([teamA], [teamB]) => {
         if (teamA === 'FA') return 1; if (teamB === 'FA') return -1;
         const strengthA = teams[teamA].reduce((s, p) => s + (p.custom_z_score || 0), 0);
@@ -565,9 +558,9 @@ async function renderTeamAnalysis() {
         return strengthB - strengthA;
     }).map(([teamName, players]) => {
         const teamStrength = players.reduce((sum, p) => sum + (p.custom_z_score || 0), 0);
-        const playerRows = players.sort((a, b) => (b.custom_z_score || 0) - (a.custom_z_score || 0)).map(p => {
-            // FIX [Team Analysis]: Correctly display MPG instead of MIN
-            const mpg = p.MIN || 0;
+        // ... (rest of the function is the same, but this is the key fix) ...
+        const playerRows = players.sort((a,b) => (b.custom_z_score || 0) - (a.custom_z_score || 0)).map(p => {
+            const mpg = (p.MIN || 0) / (p.GP > 0 ? p.GP : 1);
             return `<tr><td><a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName}</a></td><td>${(p.GP||0).toFixed(0)}</td><td>${mpg.toFixed(1)}</td><td>${(p.PTS||0).toFixed(1)}</td><td>${(p.REB||0).toFixed(1)}</td><td>${(p.AST||0).toFixed(1)}</td><td>${(p.custom_z_score||0).toFixed(2)}</td></tr>`;
         }).join('');
 
@@ -583,7 +576,6 @@ async function renderTeamAnalysis() {
             </div>`;
     }).join('');
 }
-
 // --- PLAYER PROGRESSION TAB ---
 async function initializePlayerProgressionTab() {
     const container = document.getElementById("player-progression-container");
