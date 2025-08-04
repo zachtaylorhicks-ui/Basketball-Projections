@@ -401,21 +401,25 @@ function renderSeasonTableBody(showCount) {
             <td>${p.team || 'N/A'}</td>
             <td>${p.GP || 0}</td>
             <td>${minutes.toFixed(1)}</td>
+
             ${ALL_STAT_KEYS.map(key => {
                 const zKey = STAT_CONFIG[key].zKey;
                 const rawKey = key.replace('_impact', '');
-                let value = p[rawKey] || 0;
                 const zValue = p[zKey] || 0;
                 let displayValue;
 
                 if (key === 'FG_impact') {
-                    const fg_pct = (p.FGA > 0) ? (p.FGM / p.FGA) : 0;
-                    displayValue = fg_pct.toFixed(3); // Display as .457
+                    // Handle both historical data (FGM/FGA) and projection data (FG_pct)
+                    displayValue = p.FGM !== undefined 
+                        ? ((p.FGA > 0) ? (p.FGM / p.FGA) : 0).toFixed(3) 
+                        : (p.FG_pct || 0).toFixed(3);
                 } else if (key === 'FT_impact') {
-                    const ft_pct = (p.FTA > 0) ? (p.FTM / p.FTA) : 0;
-                    displayValue = ft_pct.toFixed(3); // Display as .891
+                    displayValue = p.FTM !== undefined 
+                        ? ((p.FTA > 0) ? (p.FTM / p.FTA) : 0).toFixed(3) 
+                        : (p.FT_pct || 0).toFixed(3);
                 } else {
-                    const precision = key.includes('impact') ? 2 : (isTotalMode ? 0 : 1);
+                    const value = p[rawKey] || 0;
+                    const precision = isTotalMode ? 0 : 1;
                     displayValue = value.toFixed(precision);
                 }
 
