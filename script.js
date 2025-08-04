@@ -738,16 +738,30 @@ async function renderCareerChart() {
             const draftInfoStr = playerProfile.draftInfo || '';
             const draftYearMatch = draftInfoStr.match(/(\d{4})/);
             const draftPickMatch = draftInfoStr.match(/P(\d+)/);
+// ... previous code ...
             const draftYear = draftYearMatch ? parseInt(draftYearMatch[1]) : null;
             const draftNumber = draftPickMatch ? parseInt(draftPickMatch[1]) : null;
-            const binSize = careerData.game_bin_size;
+            
+            // FIX: Use the correct key and provide a fallback. Also check for existence of data before mapping.
+            const binSize = careerData.game_bin_size || 20; // Default to 20 if key is missing
 
-            if(draftYear && careerData.by_year?.[draftYear]) {
-                datasets.push({ label: `Avg. Draft Year ${draftYear}`, data: careerData.by_year[draftYear].map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), borderColor: 'var(--success-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 2 });
+            if(draftYear && careerData.by_year && careerData.by_year[draftYear]) {
+                const yearData = careerData.by_year[draftYear];
+                datasets.push({ 
+                    label: `Avg. Draft Year ${draftYear}`, 
+                    data: yearData.map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), 
+                    borderColor: 'var(--success-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 2 
+                });
             }
-            if(draftNumber && careerData.by_pick?.[draftNumber]) {
-                datasets.push({ label: `Avg. Draft Pick #${draftNumber}`, data: careerData.by_pick[draftNumber].map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), borderColor: 'var(--danger-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 3 });
+            if(draftNumber && careerData.by_pick && careerData.by_pick[draftNumber]) {
+                const pickData = careerData.by_pick[draftNumber];
+                datasets.push({ 
+                    label: `Avg. Draft Pick #${draftNumber}`, 
+                    data: pickData.map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), 
+                    borderColor: 'var(--danger-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 3 
+                });
             }
+
         }
     }
     
