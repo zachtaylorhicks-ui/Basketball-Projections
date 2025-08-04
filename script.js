@@ -223,53 +223,128 @@ async function renderPlayerCareerCurveChart(personId) {
 
 
 // --- SEASON-LONG RANKINGS TAB ---
+// ==============================================================================
+// ---- REPLACE initializeSeasonTab FUNCTION ----
+// ==============================================================================
 function initializeSeasonTab() {
-    const selector = document.getElementById("data-source-selector");
     const manifest = fullData.seasonLongDataManifest || {};
-    const sources = Object.keys(manifest)
-      .filter(key => key.includes('projections') || key.includes('actuals'))
-      .map(key => key.replace(/_per_game|_total/g, ''))
-      .filter((v, i, a) => a.indexOf(v) === i) // Unique keys
-      .sort((a,b) => b.localeCompare(a));
+    const seasonSelector = document.getElementById("season-selector");
+    const splitSelector = document.getElementById("split-selector");
+
+    // 1. Group all available data sources by season
+    const sourcesBySeason = {};
+    for (const key in manifest) {
+        // Extract season year, e.g., "2024" from "actuals_2024_full_per_game"
+        const match = key.match(/(\d{4})/);
+        if (!match) continue;
+        const year = match[1];
+
+        if (!sourcesBySeason[year]) {
+            sourcesBySeason[year] = [];
+        }
+
+        // Extract split type, e.g., "full" from "actuals_2024_full_per_game"
+        let splitKey = "projections";
+        if (key.includes('full')) splitKey = 'full';
+        if (key.includes('pre_trade')) splitKey = 'pre_trade';
+        if (key.includes('post_trade')) splitKey = 'post_trade';
+        
+        const sourceObject = {
+            key: key.replace(/_per_game|_total/g, ''),
+            label: manifest[key].label,
+            split: splitKey
+        };
+
+        // Avoid adding duplicate splits (per_game and total have same label)
+        if (!sourcesBySeason[year].some(s => s.key === sourceObject.key)) {
+            sourcesBySeason[year].push(sourceObject);
+        }
+    }
+
+    // 2. Populate the Season dropdown
+    // Sort seasons descending, with projections first
+    const sortedSeasons = Object.keys(sourcesBySeason).sort((a, b) => {
+        if (a.includes('proj')) return -1;
+        if (b.includes('proj')) return 1;
+        return b - a;
+    });
+
+    seasonSelector.innerHTML = sortedSeasons.map(year => {
+        const label = sourcesBySeason[year][0].label.match(/(\d{4}-\d{2})|(\d{4}-\d{2}\s\w+)/)[0];
+        return `<option value="${year}">${label}</option>`;
+    }).join('');
+
+    // 3. Create a function to update the Split dropdown based on the selected season
+    function updateSplitSelector() {
+        const selectedYear = seasonSelector.value;
+        const splits = sourcesBySeason[selectedYear];
+
+        // Define a user-friendly label for each split key
+        const splitLabels = {
+            'projections': 'Projections',
+            'full': 'Full Season',
+            'pre_trade': 'Pre-Trade Deadline',
+            'post_trade': 'Post-Trade Deadline'
+        };
+
+        splitSelector.innerHTML = splits.map(split => {
+            return `<option value="${split.key}">${splitLabels[split.split] || split.split}</option>`;
+        }).join('');
+    }
+
+    // 4. Set up event listeners
+    seasonSelector.addEventListener('change', () => {
+        updateSplitSelector();
+        renderSeasonTable();
+    });
+    splitSelector.addEventListener('change', renderSeasonTable);
     
-    selector.innerHTML = sources.map(key => `<option value="${key}">${manifest[key+'_per_game']?.label || key}</option>`).join('');
+    // Initial population
+    updateSplitSelector();
 
-    document.getElementById("category-weights-grid").innerHTML = ALL_STAT_KEYS.map(key => `
-        <div class="category-item"><label><input type="checkbox" data-key="${key}" checked> ${STAT_CONFIG[key].name || key}</label></div>
-    `).join('');
-
+    // Set up the rest of the controls
+    document.getElementById("category-weights-grid").innerHTML = ALL_STAT_KEYS.map(key => `<div class="category-item"><label><input type="checkbox" data-key="${key}" checked> ${STAT_CONFIG[key].name || key}</label></div>`).join('');
     document.getElementById("season-controls")?.addEventListener("change", renderSeasonTable);
     document.getElementById("search-player")?.addEventListener("input", renderSeasonTable);
     document.getElementById("predictions-thead")?.addEventListener("click", handleSortSeason);
     renderSeasonTable();
 }
-
+// ==============================================================================
+// ---- REPLACE renderSeasonTable FUNCTION ----
+// ==============================================================================
 async function renderSeasonTable() {
+    // Construct the data source key from the TWO dropdowns
+    const sourceBaseKey = document.getElementById("split-selector").value;
+    const calcMode = document.getElementById("calculation-mode").value;
+    const sourceKey = `${sourceBaseKey}_${calcMode}`;
+
     const settings = {
-        sourceBaseKey: document.getElementById("data-source-selector").value,
-        calcMode: document.getElementById("calculation-mode").value,
         showCount: parseInt(document.getElementById("show-count").value, 10),
         searchTerm: document.getElementById("search-player").value.toLowerCase().trim(),
         activeCategories: new Set(Array.from(document.querySelectorAll("#category-weights-grid input:checked")).map(cb => cb.dataset.key))
     };
-    const sourceKey = `${settings.sourceBaseKey}_${settings.calcMode}`;
+    
     const tbody = document.getElementById("predictions-tbody");
-    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Loading player data...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;">Loading player data...</td></tr>`;
     
     const data = await fetchSeasonData(sourceKey);
+    
     if (!data) {
-        tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color: var(--danger-color);">Could not load data for this source. It may not exist for the selected calculation mode.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; color: var(--danger-color);">Could not load data for this source. It may not exist for the selected calculation mode.</td></tr>`;
         return;
     }
 
     let processedData = data.map(player => ({
         ...player,
-        custom_z_score: settings.activeCategories.size > 0 ? Array.from(settings.activeCategories).reduce((acc, catKey) => acc + (player[STAT_CONFIG[catKey].zKey] || 0), 0) : 0
+        custom_z_score: settings.activeCategories.size > 0 
+            ? Array.from(settings.activeCategories).reduce((acc, catKey) => acc + (player[STAT_CONFIG[catKey].zKey] || 0), 0) 
+            : 0
     }));
 
     if (settings.searchTerm) {
         processedData = processedData.filter(p => p.playerName?.toLowerCase().includes(settings.searchTerm));
     }
+
     currentSort.data = processedData;
     sortSeasonData();
     renderSeasonTableBody(settings.showCount);
