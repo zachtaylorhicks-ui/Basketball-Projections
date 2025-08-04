@@ -129,7 +129,7 @@
         </div>
 
         <div id="PlayerProgression" class="tab-content">
-            <div id="player-progression-container" class="progression-grid">
+            <div id="player-progression-container">
                  <!-- JS will inject the four "Risers" and "Fallers" cards here -->
             </div>
         </div>
@@ -155,37 +155,32 @@
                         </select>
                     </div>
                     <div class="filter-group search-group">
-                        <label for="career-search-player">HIGHLIGHT PLAYER</label>
-                        <input type="text" id="career-search-player" placeholder="e.g., LeBron James">
+                        <label for="career-search-player">ADD PLAYERS TO CHART</label>
+                        <input type="text" id="career-search-player" placeholder="e.g., LeBron James" list="player-datalist">
+                        <datalist id="player-datalist"></datalist>
+                        <div id="career-selected-players" class="selected-players-container"></div>
                     </div>
                 </div>
-                <!-- NEW CONTROLS FOR CAREER ANALYSIS -->
                 <div class="bottom-controls" style="margin-top: 20px; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div>
-                        <p class="weights-title"><strong>Display Options:</strong></p>
+                        <p class="weights-title"><strong>Comparison Lines:</strong></p>
                         <div id="career-chart-toggles" style="display: flex; flex-wrap: wrap; gap: 15px;">
-                            <div class="chart-toggle">
-                                <span class="chart-toggle-label">Aggregate View</span>
-                                <label class="chart-toggle-switch">
-                                    <input type="checkbox" id="career-aggregate-toggle">
-                                    <span class="chart-toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="chart-toggle">
-                                <span class="chart-toggle-label">Avg. by Position</span>
-                                <label class="chart-toggle-switch">
-                                    <input type="checkbox" id="career-pos-toggle">
-                                    <span class="chart-toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="chart-toggle">
-                                <span class="chart-toggle-label">Avg. by Draft Year</span>
-                                <label class="chart-toggle-switch">
-                                    <input type="checkbox" id="career-year-toggle">
-                                    <span class="chart-toggle-slider"></span>
-                                </label>
-                            </div>
+                            <div class="chart-toggle"><span class="chart-toggle-label">Avg. by Position</span><label class="chart-toggle-switch"><input type="checkbox" id="career-pos-toggle"><span class="chart-toggle-slider"></span></label></div>
+                            <div class="chart-toggle"><span class="chart-toggle-label">Avg. by Draft Tier</span><label class="chart-toggle-switch"><input type="checkbox" id="career-tier-toggle"><span class="chart-toggle-slider"></span></label></div>
                         </div>
+                    </div>
+                    <div>
+                         <p class="weights-title"><strong>Filter Background Players:</strong></p>
+                         <div class="filter-group">
+                            <label for="career-year-filter">SHOW DRAFT YEARS AFTER</label>
+                            <select id="career-year-filter">
+                                <option value="1980">1980</option>
+                                <option value="1990">1990</option>
+                                <option value="2000" selected>2000</option>
+                                <option value="2010">2010</option>
+                                <option value="0">Show All</option>
+                            </select>
+                         </div>
                     </div>
                 </div>
             </div>
