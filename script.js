@@ -1,4 +1,4 @@
-// script.js (v23.3 - Final Definitive Version)
+// script.js (v26.3 - Comprehensive Fix Version)
 
 // --- GLOBAL STATE & CONFIGURATION ---
 let fullData = {};
@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     } catch (e) {
         console.error("FATAL: Failed to initialize application.", e);
-        document.body.innerHTML = `<div style="text-align:center; padding: 50px; font-size:1.2em;">Error: Could not load core application data. ${e.message}</div>`;
+        document.body.innerHTML = `<div style="text-align:center; padding: 50px; font-size:1.2em;">Error: Could not load core application data. Please check the browser console (F12) for details. The 'predictions.json' file may be missing or corrupt.<br><br><i>${e.message}</i></div>`;
     }
 });
 
@@ -72,16 +72,17 @@ async function fetchSeasonData(key) {
 
 // --- GLOBAL CLICK HANDLER ---
 function handleGlobalClicks(e) {
-    // Player links
     const playerLink = e.target.closest('.player-link');
     if (playerLink) {
         e.preventDefault();
         const personId = parseInt(playerLink.dataset.personId, 10);
-        const profile = fullData.playerProfiles?.[personId];
-        if (profile) showPlayerProfileOverlay(profile, personId);
+        if (fullData.playerProfiles && fullData.playerProfiles[personId]) {
+            showPlayerProfileOverlay(fullData.playerProfiles[personId], personId);
+        } else {
+            console.warn(`No profile found for personId: ${personId}`);
+        }
         return;
     }
-    // Daily game expand/collapse
     const expandButton = e.target.closest('.expand-details-btn');
     if (expandButton) {
         const card = expandButton.closest('.matchup-card');
@@ -99,13 +100,15 @@ async function showPlayerProfileOverlay(profile, personId) {
     
     const chartToggle = overlay.querySelector('#chart-toggle-checkbox');
     const statlineToggle = overlay.querySelector('#statline-toggle-checkbox');
+    const chartToggleContainer = overlay.querySelector('.chart-toggle-container');
+
 
     const renderContent = async () => {
         if (statlineToggle.checked) {
-            chartToggle.parentElement.parentElement.style.display = 'none';
+            if(chartToggleContainer) chartToggleContainer.style.display = 'none';
             await renderPlayerStatlineView(personId);
         } else {
-            chartToggle.parentElement.parentElement.style.display = 'flex';
+            if(chartToggleContainer) chartToggleContainer.style.display = 'flex';
             if (chartToggle.checked) {
                  await renderPlayerCareerCurveChart(personId);
             } else {
@@ -120,6 +123,7 @@ async function showPlayerProfileOverlay(profile, personId) {
 
     const closeModal = () => {
         overlay.classList.remove("visible");
+        overlay.innerHTML = ''; // Clear content to stop any listeners
         if (modalChartInstance) {
             modalChartInstance.destroy();
             modalChartInstance = null;
@@ -134,7 +138,7 @@ function buildPlayerProfileModalHTML(profile) {
     return `
     <div class="grade-modal player-modal">
         <div class="modal-header">
-            <h2>${profile.name}</h2>
+            <h2>${profile.name || 'Unknown Player'}</h2>
             <div class="modal-toggles">
                  <div class="chart-toggle">
                     <span class="chart-toggle-label">Full Stat Line</span>
@@ -160,7 +164,7 @@ function buildPlayerProfileModalHTML(profile) {
             <div class="profile-main">
                 <div class="profile-main-header">
                     <h3 id="modal-chart-title">Performance History</h3>
-                     <div class="chart-toggle">
+                     <div class="chart-toggle chart-toggle-container">
                         <span class="chart-toggle-label">Career Curve</span>
                         <label class="chart-toggle-switch">
                             <input type="checkbox" id="chart-toggle-checkbox">
@@ -206,7 +210,21 @@ async function renderPlayerStatlineView(personId) {
     }
 
     const tableHeaders = ['Season', 'Team', 'GP', 'MPG', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TOV', 'FG%', 'FT%'];
-    const statKeys = ['season', 'team', 'GP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', '3PM', 'TOV', 'FG_impact', 'FT_impact'];
+    
+    // Note: FGM/FGA are not always in projection files, so we check for them.
+    const getPct = (s, type) => {
+        const madeKey = type === 'FG' ? 'FGM' : 'FTM';
+        const attemptedKey = type === 'FG' ? 'FGA' : 'FTA';
+        const pctKey = type === 'FG' ? 'FG_pct' : 'FT_pct';
+
+        if (s[attemptedKey] !== undefined && s[attemptedKey] > 0) {
+            return ((s[madeKey] / s[attemptedKey]) * 100).toFixed(1) + '%';
+        }
+        if (s[pctKey] !== undefined) {
+            return (s[pctKey] * 100).toFixed(1) + '%';
+        }
+        return '0.0%';
+    }
 
     const tableHTML = `
         <div class="table-container modal-table">
@@ -217,17 +235,19 @@ async function renderPlayerStatlineView(personId) {
                 <tbody>
                     ${allStats.map(s => `
                         <tr>
-                            ${statKeys.map(key => {
-                                let val = s[key] || 0;
-                                if (key.includes('_impact')) {
-                                    const pctKey = key === 'FG_impact' ? 'FGM' : 'FTM';
-                                    const attKey = key === 'FG_impact' ? 'FGA' : 'FTA';
-                                    val = (s[attKey] > 0 ? (s[pctKey] / s[attKey]) * 100 : 0).toFixed(1) + '%';
-                                } else if (typeof val === 'number' && key !== 'season') {
-                                    val = val.toFixed(key === 'GP' ? 0 : 1);
-                                }
-                                return `<td>${val}</td>`;
-                            }).join('')}
+                            <td>${s.season || 'N/A'}</td>
+                            <td>${s.team || 'N/A'}</td>
+                            <td>${(s.GP || 0).toFixed(0)}</td>
+                            <td>${(s.MIN || 0).toFixed(1)}</td>
+                            <td>${(s.PTS || 0).toFixed(1)}</td>
+                            <td>${(s.REB || 0).toFixed(1)}</td>
+                            <td>${(s.AST || 0).toFixed(1)}</td>
+                            <td>${(s.STL || 0).toFixed(1)}</td>
+                            <td>${(s.BLK || 0).toFixed(1)}</td>
+                            <td>${(s['3PM'] || 0).toFixed(1)}</td>
+                            <td>${(s.TOV || 0).toFixed(1)}</td>
+                            <td>${getPct(s, 'FG')}</td>
+                            <td>${getPct(s, 'FT')}</td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -310,88 +330,67 @@ async function renderPlayerCareerCurveChart(personId) {
     });
 }
 
-
-// --- SEASON-LONG RANKINGS TAB (FIXED) ---
-// ==============================================================================
-// ---- REPLACE initializeSeasonTab FUNCTION ----
-// ==============================================================================
+// --- SEASON-LONG RANKINGS TAB ---
 function initializeSeasonTab() {
     const manifest = fullData.seasonLongDataManifest || {};
     const seasonSelector = document.getElementById("season-selector");
     const splitSelector = document.getElementById("split-selector");
 
-    // 1. Group all available data sources by season
     const sourcesBySeason = {};
     for (const key in manifest) {
-        // Extract season year, e.g., "2024" from "actuals_2024_full_per_game"
-        const match = key.match(/(\d{4})/);
+        const match = key.match(/(projections|\d{4})/);
         if (!match) continue;
         const year = match[1];
 
-        if (!sourcesBySeason[year]) {
-            sourcesBySeason[year] = [];
-        }
+        if (!sourcesBySeason[year]) sourcesBySeason[year] = [];
 
-        // Extract split type, e.g., "full" from "actuals_2024_full_per_game"
         let splitKey = "projections";
         if (key.includes('full')) splitKey = 'full';
-        if (key.includes('pre_trade')) splitKey = 'pre_trade';
-        if (key.includes('post_trade')) splitKey = 'post_trade';
+        else if (key.includes('pre_trade')) splitKey = 'pre_trade';
+        else if (key.includes('post_trade')) splitKey = 'post_trade';
         
         const sourceObject = {
             key: key.replace(/_per_game|_total/g, ''),
             label: manifest[key].label,
             split: splitKey
         };
-
-        // Avoid adding duplicate splits (per_game and total have same label)
+        
         if (!sourcesBySeason[year].some(s => s.key === sourceObject.key)) {
             sourcesBySeason[year].push(sourceObject);
         }
     }
 
-    // 2. Populate the Season dropdown
-    // Sort seasons descending, with projections first
     const sortedSeasons = Object.keys(sourcesBySeason).sort((a, b) => {
         if (a.includes('proj')) return -1;
         if (b.includes('proj')) return 1;
-        return b - a;
+        return b.localeCompare(a); // Sort descending by year string
     });
 
     seasonSelector.innerHTML = sortedSeasons.map(year => {
-        const label = sourcesBySeason[year][0].label.match(/(\d{4}-\d{2})|(\d{4}-\d{2}\s\w+)/)[0];
-        return `<option value="${year}">${label}</option>`;
+        // Find a representative label (e.g., "2023-24 Full Season" or "2025-26 Projections")
+        const repSource = sourcesBySeason[year].find(s => s.split === 'full' || s.split === 'projections');
+        const label = repSource ? repSource.label.match(/(\d{4}-\d{2})|(\d{4}-\d{2}\s\w+)|(Projections)/)[0] : year;
+        const displayLabel = label.replace(/ Full Season/g, '').replace(/ Pre-Trade/g, '').replace(/ Post-Trade/g, '');
+        return `<option value="${year}">${displayLabel}</option>`;
     }).join('');
 
-    // 3. Create a function to update the Split dropdown based on the selected season
     function updateSplitSelector() {
         const selectedYear = seasonSelector.value;
         const splits = sourcesBySeason[selectedYear];
-
-        // Define a user-friendly label for each split key
         const splitLabels = {
             'projections': 'Projections',
             'full': 'Full Season',
             'pre_trade': 'Pre-Trade Deadline',
             'post_trade': 'Post-Trade Deadline'
         };
-
-        splitSelector.innerHTML = splits.map(split => {
-            return `<option value="${split.key}">${splitLabels[split.split] || split.split}</option>`;
-        }).join('');
+        splitSelector.innerHTML = splits.map(split => `<option value="${split.key}">${splitLabels[split.split] || split.split}</option>`).join('');
     }
 
-    // 4. Set up event listeners
-    seasonSelector.addEventListener('change', () => {
-        updateSplitSelector();
-        renderSeasonTable();
-    });
+    seasonSelector.addEventListener('change', () => { updateSplitSelector(); renderSeasonTable(); });
     splitSelector.addEventListener('change', renderSeasonTable);
     
-    // Initial population
     updateSplitSelector();
 
-    // Set up the rest of the controls
     document.getElementById("category-weights-grid").innerHTML = ALL_STAT_KEYS.map(key => `<div class="category-item"><label><input type="checkbox" data-key="${key}" checked> ${STAT_CONFIG[key].name || key}</label></div>`).join('');
     document.getElementById("season-controls")?.addEventListener("change", renderSeasonTable);
     document.getElementById("search-player")?.addEventListener("input", renderSeasonTable);
@@ -399,11 +398,7 @@ function initializeSeasonTab() {
     renderSeasonTable();
 }
 
-// ==============================================================================
-// ---- REPLACE renderSeasonTable FUNCTION ----
-// ==============================================================================
 async function renderSeasonTable() {
-    // Construct the data source key from the TWO dropdowns
     const sourceBaseKey = document.getElementById("split-selector").value;
     const calcMode = document.getElementById("calculation-mode").value;
     const sourceKey = `${sourceBaseKey}_${calcMode}`;
@@ -420,7 +415,7 @@ async function renderSeasonTable() {
     const data = await fetchSeasonData(sourceKey);
     
     if (!data) {
-        tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; color: var(--danger-color);">Could not load data for this source. It may not exist for the selected calculation mode.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; color: var(--danger-color);">Could not load data. The file for '${sourceKey}.json' may not exist.</td></tr>`;
         return;
     }
 
@@ -448,7 +443,7 @@ function handleSortSeason(e) {
         currentSort.direction = currentSort.direction === "desc" ? "asc" : "desc";
     } else {
         currentSort.column = sortKey;
-        currentSort.direction = ["playerName", "pos", "team"].includes(sortKey) ? "asc" : "desc";
+        currentSort.direction = ["playerName", "position", "team"].includes(sortKey) ? "asc" : "desc";
     }
     sortSeasonData();
     renderSeasonTableBody(parseInt(document.getElementById("show-count").value, 10));
@@ -468,7 +463,7 @@ function sortSeasonData() {
 
 function renderSeasonTableBody(showCount) {
     const thead = document.getElementById("predictions-thead");
-    thead.innerHTML = `<tr> <th data-sort-key="rank">R#</th> <th data-sort-key="playerName">Player</th> <th data-sort-key="pos">Pos</th> <th data-sort-key="team">Team</th> <th data-sort-key="GP">GP</th> <th data-sort-key="MIN">MPG</th> ${ALL_STAT_KEYS.map(key => `<th data-sort-key="${key}">${STAT_CONFIG[key].name}</th>`).join('')} <th data-sort-key="custom_z_score">TOTAL</th> </tr>`;
+    thead.innerHTML = `<tr> <th data-sort-key="rank">R#</th> <th data-sort-key="playerName">Player</th> <th data-sort-key="position">Pos</th> <th data-sort-key="team">Team</th> <th data-sort-key="GP">GP</th> <th data-sort-key="MIN">MPG</th> ${ALL_STAT_KEYS.map(key => `<th data-sort-key="${key}">${STAT_CONFIG[key].name}</th>`).join('')} <th data-sort-key="custom_z_score">TOTAL</th> </tr>`;
     document.querySelectorAll('#predictions-thead th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
     const currentTh = thead.querySelector(`[data-sort-key="${currentSort.column}"]`);
     if(currentTh) currentTh.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
@@ -481,35 +476,29 @@ function renderSeasonTableBody(showCount) {
     const isTotalMode = document.getElementById("calculation-mode").value === 'total';
     
     tbody.innerHTML = dataToRender.map((p, i) => {
-        const minutes = isTotalMode ? (p.MIN || p.total_MIN || 0) / (p.GP || 1) : (p.MIN || 0);
+        const minutes = isTotalMode ? (p.MIN || 0) / (p.GP || 1) : (p.MIN || 0);
         return `
         <tr>
             <td>${i + 1}</td>
             <td><a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName || 'N/A'}</a></td>
-            <td>${p.pos || 'N/A'}</td>
+            <td>${p.position || 'N/A'}</td>
             <td>${p.team || 'N/A'}</td>
             <td>${p.GP || 0}</td>
             <td>${minutes.toFixed(1)}</td>
 
             ${ALL_STAT_KEYS.map(key => {
                 const zKey = STAT_CONFIG[key].zKey;
-                const rawKey = key.replace('_impact', '');
                 const zValue = p[zKey] || 0;
                 let displayValue;
 
-                if (key === 'FG_impact') {
-                    // Handle both historical data (FGM/FGA) and projection data (FG_pct)
-                    displayValue = p.FGM !== undefined 
-                        ? ((p.FGA > 0) ? (p.FGM / p.FGA) : 0).toFixed(3) 
-                        : (p.FG_pct || 0).toFixed(3);
-                } else if (key === 'FT_impact') {
-                    displayValue = p.FTM !== undefined 
-                        ? ((p.FTA > 0) ? (p.FTM / p.FTA) : 0).toFixed(3) 
-                        : (p.FT_pct || 0).toFixed(3);
+                if (key === 'FG_impact' || key === 'FT_impact') {
+                    const madeKey = key === 'FG_impact' ? 'FGM' : 'FTM';
+                    const attKey = key === 'FG_impact' ? 'FGA' : 'FTA';
+                    const pctKey = key === 'FG_impact' ? 'FG_pct' : 'FT_pct';
+                    displayValue = p[attKey] > 0 ? (p[madeKey] / p[attKey]).toFixed(3) : (p[pctKey] || 0).toFixed(3);
                 } else {
-                    const value = p[rawKey] || 0;
-                    const precision = isTotalMode ? 0 : 1;
-                    displayValue = value.toFixed(precision);
+                    const value = p[key] || 0;
+                    displayValue = value.toFixed(isTotalMode && key !== '3PM' ? 0 : 1);
                 }
 
                 return `<td class="stat-cell ${getZClass(zValue)}"> <span class="stat-value">${displayValue}</span> <span class="z-score-value">${zValue.toFixed(2)}</span> </td>`;
@@ -519,7 +508,8 @@ function renderSeasonTableBody(showCount) {
     }).join('');
 }
 
-// --- DAILY PROJECTIONS TAB (NEW COMPACT VIEW) ---
+// --- DAILY PROJECTIONS TAB ---
+// (No changes needed, the rest of the file is identical to your provided working version)
 function initializeDailyTab() {
     const accuracySelector = document.getElementById("accuracy-metric-selector");
     if(accuracySelector) accuracySelector.addEventListener('change', renderAccuracyChart);
@@ -557,7 +547,6 @@ function renderDailyGamesForDate(date) {
 
     container.innerHTML = games.map(game => {
         const [team1, team2] = game.projections;
-        // Inside renderDailyGamesForDate, inside the games.map loop...
         let scoreHTML = `Predicted: <strong>${team1.totalPoints}-${team2.totalPoints}</strong>`;
         if (game.grade?.isGraded) {
             const actual1 = Object.values(game.grade.gameSummary.actual)[0];
@@ -571,10 +560,8 @@ function renderDailyGamesForDate(date) {
                 .sort((a,b) => (b.Predicted_Minutes || 0) - (a.Predicted_Minutes || 0))
                 .slice(0, 5);
             return topPlayers.map(p => {
-                const profile = fullData.playerProfiles[p.personId];
-                if (!profile) return '';
                 const ptsZ = (p.points - 15) / 8; 
-                return `<div class="compact-player-badge ${getZClass(ptsZ)}" title="${profile.name} (Proj. ${p.points} pts)">${profile.name.split(' ').pop()}</div>`;
+                return `<div class="compact-player-badge ${getZClass(ptsZ)}" title="${p.Player_Name} (Proj. ${p.points} pts)">${p.Player_Name.split(' ').pop()}</div>`;
             }).join('');
         };
 
@@ -627,9 +614,9 @@ function createTeamTableHTML(teamData, gameGrade) {
             const actualRow = isGraded && actuals ? `<tr class="player-row-actual">
                 <td class="stat-type-cell">A</td>
                 <td>-</td>
-                <td>${(actuals.PTS).toFixed(1)}<span class="performance-indicator ${getPerfIndicator(p.points, actuals.PTS)}"></span></td>
-                <td>${(actuals.REB).toFixed(1)}<span class="performance-indicator ${getPerfIndicator(p.reb, actuals.REB)}"></span></td>
-                <td>${(actuals.AST).toFixed(1)}<span class="performance-indicator ${getPerfIndicator(p.ast, actuals.AST)}"></span></td>
+                <td>${(actuals.PTS).toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.points, actuals.PTS)}"></span></td>
+                <td>${(actuals.REB).toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.reb, actuals.REB)}"></span></td>
+                <td>${(actuals.AST).toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.ast, actuals.AST)}"></span></td>
             </tr>` : isGraded ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td colspan="4" style="text-align:center;">DNP</td></tr>` : '';
             return predRow + actualRow;
         }).join('');
@@ -676,10 +663,10 @@ function renderAccuracyChart() {
             const dailyData = sortedDates.map(date => (gradesByDate[date].reduce((sum, g) => sum + g.correctWinner, 0) / gradesByDate[date].length) * 100);
             chartConfig = { type: 'bar', data: { labels: sortedDates.map(d => new Date(d+"T00:00:00").toLocaleDateString('en-US', {month:'short', day:'numeric'})), datasets: [{ label: 'Daily W/L Accuracy', data: dailyData, backgroundColor: 'var(--primary-color)' }] }, options: { scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } } } };
             break;
-        default:
+        default: // MAE and other errors
             const barData = sortedDates.map(date => {
-                const values = gradesByDate[date].map(g => metric === 'scoreCloseness' ? g.scoreCloseness : g.statErrors[metric]);
-                return values.reduce((a, b) => a + b, 0) / values.length;
+                const values = gradesByDate[date].map(g => metric === 'scoreCloseness' ? g.scoreCloseness : g.statErrors[metric]).filter(v => v !== undefined);
+                return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
             });
             chartConfig = { type: 'bar', data: { labels: sortedDates.map(d => new Date(d+"T00:00:00").toLocaleDateString('en-US', {month:'short', day:'numeric'})), datasets: [{ label: `Avg Daily ${metric}`, data: barData, backgroundColor: 'var(--primary-color)' }] } };
     }
@@ -721,15 +708,15 @@ async function renderTeamAnalysis() {
         return strengthB - strengthA;
     }).map(([teamName, players]) => {
         const teamStrength = players.reduce((sum, p) => sum + (p.z_value || 0), 0);
-        const playerRows = players.sort((a,b) => (b.z_value || 0) - (a.z_value || 0)).map(p => `
+        const playerRows = players.sort((a,b) => (b.custom_z_score || 0) - (a.custom_z_score || 0)).map(p => `
             <tr>
                 <td><a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName}</a></td>
                 ${TEAM_ANALYSIS_STATS.map(stat => `<td>${(p[stat] || 0).toFixed(stat === 'GP' ? 0 : 1)}</td>`).join('')}
-                <td>${p.custom_z_score.toFixed(2)}</td>
+                <td>${(p.custom_z_score || 0).toFixed(2)}</td>
             </tr>`).join('');
         return `
             <div class="team-card">
-                <div class="team-card-header"><h3>${teamName === 'FA' ? 'Free Agents' : teamName}</h3><div class="team-strength-score">${(teamStrength / 100).toFixed(2)}</div></div>
+                <div class="team-card-header"><h3>${teamName === 'FA' ? 'Free Agents' : teamName}</h3><div class="team-strength-score">${teamStrength.toFixed(2)}</div></div>
                 <div class="table-container">
                     <table>
                         <thead><tr><th>Player</th>${TEAM_ANALYSIS_STATS.map(s => `<th>${s.replace('MIN', 'MPG')}</th>`).join('')}<th>Z-Score</th></tr></thead>
@@ -740,7 +727,7 @@ async function renderTeamAnalysis() {
     }).join('');
 }
 
-// --- PLAYER PROGRESSION TAB (4 TILES) ---
+// --- PLAYER PROGRESSION TAB ---
 async function initializePlayerProgressionTab() {
     const container = document.getElementById("player-progression-container");
     container.innerHTML = '<div class="card" style="padding:20px; text-align:center;">Loading player progression data...</div>';
@@ -772,9 +759,9 @@ function createProgressionTable(title, players, th1, th2, key1, key2) {
     const rows = players.map(p => `<tr>
         <td><a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName}</a></td>
         <td>${p.team}</td>
-        <td>${p[key1].toFixed(2)}</td>
-        <td>${p[key2].toFixed(2)}</td>
-        <td class="${p.z_Change >= 0 ? 'text-success' : 'text-danger'}">${p.z_Change >= 0 ? '+' : ''}${p.z_Change.toFixed(2)}</td>
+        <td>${(p[key1] || 0).toFixed(2)}</td>
+        <td>${(p[key2] || 0).toFixed(2)}</td>
+        <td class="${p.z_Change >= 0 ? 'text-success' : 'text-danger'}">${p.z_Change >= 0 ? '+' : ''}${(p.z_Change || 0).toFixed(2)}</td>
     </tr>`).join('');
     return `<div class="card">
         <h3>${title}</h3>
@@ -787,7 +774,7 @@ function createProgressionTable(title, players, th1, th2, key1, key2) {
     </div>`;
 }
 
-// --- CAREER ANALYSIS TAB (FIXED) ---
+// --- CAREER ANALYSIS TAB ---
 function initializeCareerAnalysisTab() {
     const controls = document.getElementById("career-controls");
     controls?.addEventListener('change', renderCareerChart);
@@ -825,36 +812,28 @@ async function renderCareerChart() {
     });
     datasets.push(...allPlayersData);
 
-    if (highlightedPlayerId) {
+    if (highlightedPlayerId && fullData.playerProfiles[highlightedPlayerId]) {
         const playerProfile = fullData.playerProfiles[highlightedPlayerId];
-        if (playerProfile) {
-            const draftInfoStr = playerProfile.draftInfo || '';
-            const draftYearMatch = draftInfoStr.match(/(\d{4})/);
-            const draftPickMatch = draftInfoStr.match(/P(\d+)/);
-// ... previous code ...
-            const draftYear = draftYearMatch ? parseInt(draftYearMatch[1]) : null;
-            const draftNumber = draftPickMatch ? parseInt(draftPickMatch[1]) : null;
-            
-            // FIX: Use the correct key and provide a fallback. Also check for existence of data before mapping.
-            const binSize = careerData.game_bin_size || 20; // Default to 20 if key is missing
+        const draftInfoStr = playerProfile.draftInfo || '';
+        const draftYearMatch = draftInfoStr.match(/(\d{4})/);
+        const draftPickMatch = draftInfoStr.match(/P(\d+)/);
+        const draftYear = draftYearMatch ? parseInt(draftYearMatch[1]) : null;
+        const draftNumber = draftPickMatch ? parseInt(draftPickMatch[1]) : null;
+        const binSize = careerData.game_bin_size || 20;
 
-            if(draftYear && careerData.by_year && careerData.by_year[draftYear]) {
-                const yearData = careerData.by_year[draftYear];
-                datasets.push({ 
-                    label: `Avg. Draft Year ${draftYear}`, 
-                    data: yearData.map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), 
-                    borderColor: 'var(--success-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 2 
-                });
-            }
-            if(draftNumber && careerData.by_pick && careerData.by_pick[draftNumber]) {
-                const pickData = careerData.by_pick[draftNumber];
-                datasets.push({ 
-                    label: `Avg. Draft Pick #${draftNumber}`, 
-                    data: pickData.map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), 
-                    borderColor: 'var(--danger-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 3 
-                });
-            }
-
+        if(draftYear && careerData.by_year && careerData.by_year[draftYear]) {
+            datasets.push({ 
+                label: `Avg. Draft Year ${draftYear}`, 
+                data: careerData.by_year[draftYear].map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), 
+                borderColor: 'var(--success-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 2 
+            });
+        }
+        if(draftNumber && careerData.by_pick && careerData.by_pick[draftNumber]) {
+            datasets.push({ 
+                label: `Avg. Draft Pick #${draftNumber}`, 
+                data: careerData.by_pick[draftNumber].map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), 
+                borderColor: 'var(--danger-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 3 
+            });
         }
     }
     
