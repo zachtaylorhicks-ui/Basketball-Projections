@@ -385,8 +385,7 @@ function sortSeasonData() {
 
 function renderSeasonTableBody(showCount) {
     const thead = document.getElementById("predictions-thead");
-    // Update header to match what the JS expects
-    thead.innerHTML = `<tr><th>R#</th><th data-sort-key="playerName">Player</th><th data-sort-key="position">Pos</th><th data-sort-key="team">Team</th><th data-sort-key="GP">GP</th><th data-sort-key="MIN">MPG</th>${ALL_STAT_KEYS.map(k=>`<th data-sort-key="${k}">${STAT_CONFIG[k].name}</th>`).join('')}<th data-sort-key="custom_z_score">TOTAL</th></tr>`;
+    thead.innerHTML = `<tr><th>R#</th><th data-sort-key="playerName">Player</th><th data-sort-key="position">Pos</th><th data-sort-key="team">Team</th><th data-sort-key="GP">GP</th><th data-sort-key="MIN">MIN/MPG</th>${ALL_STAT_KEYS.map(k=>`<th data-sort-key="${STAT_CONFIG[k].zKey}">${STAT_CONFIG[k].name}</th>`).join('')}<th data-sort-key="custom_z_score">TOTAL</th></tr>`;
 
     document.querySelectorAll('#predictions-thead th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
     const currentTh = thead.querySelector(`[data-sort-key="${currentSort.column}"]`);
@@ -400,9 +399,6 @@ function renderSeasonTableBody(showCount) {
     const isTotalMode = document.getElementById("calculation-mode").value === 'total';
     
     tbody.innerHTML = dataToRender.map((p, i) => {
-        // Correctly calculate MPG regardless of mode
-        const mpg = (p.MIN || 0) / (isTotalMode && p.GP > 0 ? p.GP : 1);
-
         return `
         <tr>
             <td>${i + 1}</td>
@@ -410,20 +406,24 @@ function renderSeasonTableBody(showCount) {
             <td>${p.position || 'N/A'}</td>
             <td>${p.team || 'N/A'}</td>
             <td>${p.GP || 0}</td>
-            <td>${mpg.toFixed(1)}</td>
+            <td>${(p.MIN || 0).toFixed(1)}</td>
 
             ${ALL_STAT_KEYS.map(key => {
                 const zKey = STAT_CONFIG[key].zKey;
                 const zValue = p[zKey] || 0;
                 let displayValue;
                 
+                // The JSON now provides the correct raw data for each mode.
+                // We just need to format it correctly.
                 if (key === 'FG_impact') {
                     displayValue = p.FGA > 0 ? (p.FGM / p.FGA).toFixed(3) : '0.000';
                 } else if (key === 'FT_impact') {
                     displayValue = p.FTA > 0 ? (p.FTM / p.FTA).toFixed(3) : '0.000';
                 } else {
                     const rawKey = key.replace('_impact', '');
-                    displayValue = (p[rawKey] || 0).toFixed(isTotalMode ? 0 : 1);
+                    // Use 0 decimal places for totals, 1 for per-game
+                    const precision = isTotalMode ? 0 : 1;
+                    displayValue = (p[rawKey] || 0).toFixed(precision);
                 }
                 
                 return `<td class="stat-cell ${getZClass(zValue)}"><span class="stat-value">${displayValue}</span><span class="z-score-value">${zValue.toFixed(2)}</span></td>`;
@@ -535,7 +535,12 @@ function renderAccuracyChart() {
 function initializeTeamAnalysisTab() {
     const selector = document.getElementById("team-analysis-source-selector");
     const manifest = fullData.seasonLongDataManifest || {};
-    const sources = Object.keys(manifest).filter(key => key.endsWith('_per_game')).sort((a, b) => b.localeCompare(a));
+    
+    // --- FIX: Only show _per_game sources for team analysis ---
+    const sources = Object.keys(manifest)
+      .filter(key => key.endsWith('_per_game'))
+      .sort((a,b) => b.localeCompare(a)); // Sorts by year descending
+
     selector.innerHTML = sources.map(key => `<option value="${key}">${manifest[key].label}</option>`).join('');
     selector.addEventListener('change', renderTeamAnalysis);
     renderTeamAnalysis();
