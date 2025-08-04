@@ -527,6 +527,8 @@ function renderDailyGamesForDate(date) {
     }).join('');
 }
 
+// In script.js, replace the createTeamTableHTML function
+
 function createTeamTableHTML(teamData, gameGrade) {
     const isGraded = gameGrade?.isGraded;
     const getPerfIndicator = (pred, actual) => {
@@ -536,11 +538,20 @@ function createTeamTableHTML(teamData, gameGrade) {
         if (relativeError > 0.60 && diff > 3) return 'pi-bad';
         return 'pi-neutral';
     };
-    const playersHtml = teamData.players.sort((a, b) => (b.Predicted_Minutes || 0) - (a.Predicted_Minutes || 0)).map(p => {
-        const pId = p.personId || p.Player_ID, actuals = isGraded ? gameGrade.playerActuals?.[pId] : null;
-        const nameHtml = `<a href="#" class="player-link" data-person-id="${pId}">${p.Player_Name}</a>`;
-        const predRow = `<tr class="player-row-pred"><td rowspan="${isGraded ? 2 : 1}" class="player-name-cell">${nameHtml}</td><td class="stat-type-cell">P</td><td>${(p.Predicted_Minutes||0).toFixed(1)}</td><td>${(p.points||0).toFixed(1)}</td><td>${(p.reb||0).toFixed(1)}</td><td>${(p.ast||0).toFixed(1)}</td></tr>`;
-        const actualRow = isGraded && actuals ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td>-</td><td>${actuals.PTS.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.points, actuals.PTS)}"></span></td><td>${actuals.REB.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.reb, actuals.REB)}"></span></td><td>${actuals.AST.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.ast, actuals.AST)}"></span></td></tr>` : isGraded ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td colspan="4" style="text-align:center;">DNP</td></tr>` : '';
+    // Sort players by predicted minutes
+    const playersHtml = teamData.players.sort((a, b) => (b.MIN || 0) - (a.MIN || 0)).map(p => {
+        const pId = p.personId;
+        const profile = fullData.playerProfiles[pId]; // Look up the profile
+        const playerName = profile ? profile.playerName : 'Unknown Player';
+
+        const actuals = isGraded ? gameGrade.playerActuals?.[pId] : null;
+        
+        // Use the looked-up name in the link
+        const nameHtml = `<a href="#" class="player-link" data-person-id="${pId}">${playerName}</a>`;
+        
+        // Use the stats from the lightweight player object `p`
+        const predRow = `<tr class="player-row-pred"><td rowspan="${isGraded ? 2 : 1}" class="player-name-cell">${nameHtml}</td><td class="stat-type-cell">P</td><td>${(p.MIN||0).toFixed(1)}</td><td>${(p.PTS||0).toFixed(1)}</td><td>${(p.REB||0).toFixed(1)}</td><td>${(p.AST||0).toFixed(1)}</td></tr>`;
+        const actualRow = isGraded && actuals ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td>-</td><td>${actuals.PTS.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.PTS, actuals.PTS)}"></span></td><td>${actuals.REB.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.REB, actuals.REB)}"></span></td><td>${actuals.AST.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.AST, actuals.AST)}"></span></td></tr>` : isGraded ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td colspan="4" style="text-align:center;">DNP</td></tr>` : '';
         return predRow + actualRow;
     }).join('');
     return `<div class="team-box-score"><h3 class="team-header">${teamData.teamName}</h3><table class="daily-table"><thead><tr><th style="text-align:left;">Player</th><th></th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${playersHtml}</tbody></table></div>`;
