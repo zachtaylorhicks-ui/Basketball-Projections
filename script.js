@@ -614,18 +614,11 @@ function initializeCareerAnalysisTab() {
 
 async function renderCareerChart() {
     const chartWrapper = document.getElementById("career-chart-wrapper");
-    // Clear previous chart instance if it exists
-    if (careerChartInstance) {
-        careerChartInstance.destroy();
-    }
+    if (careerChartInstance) careerChartInstance.destroy();
     chartWrapper.innerHTML = '<canvas id="career-chart"></canvas>';
     const ctx = document.getElementById('career-chart')?.getContext('2d');
-    if (!ctx) {
-        console.error("Could not get chart context.");
-        return;
-    }
+    if (!ctx) return;
 
-    // Fetch the career data
     const careerData = await fetchSeasonData('career_data');
     if (!careerData || !careerData.players) {
         chartWrapper.innerHTML = `<p class="error-cell">Could not load career analysis data.</p>`;
@@ -636,49 +629,72 @@ async function renderCareerChart() {
     const xAxis = document.getElementById("career-xaxis-selector").value;
     const searchTerm = document.getElementById("career-search-player").value.toLowerCase().trim();
     
+    // Read the state of the new toggle switches
+    const showAggregateOnly = document.getElementById("career-aggregate-toggle").checked;
+    const showPositionAvg = document.getElementById("career-pos-toggle").checked;
+    const showYearAvg = document.getElementById("career-year-toggle").checked;
+    
     let highlightedPlayerId = null;
+    let playerProfile = null;
     if (searchTerm) {
         const entry = Object.entries(fullData.playerProfiles).find(([id, profile]) => 
-            profile && profile.playerName && profile.playerName.toLowerCase().includes(searchTerm)
+            profile?.playerName?.toLowerCase().includes(searchTerm)
         );
         if (entry) {
             highlightedPlayerId = parseInt(entry[0], 10);
+            playerProfile = entry[1];
         }
     }
     
     const datasets = [];
-    // Plot all players as a light grey background
-    const allPlayersData = Object.entries(careerData.players).map(([id, data]) => {
-        const isHighlighted = parseInt(id) === highlightedPlayerId;
-        return {
-            label: `Player ${id}`,
-            data: data.map(d => ({ x: d[xAxis], y: d[stat] })),
-            borderColor: isHighlighted ? 'var(--warning-color)' : 'rgba(128, 128, 128, 0.1)',
-            borderWidth: isHighlighted ? 2.5 : 1,
-            pointRadius: 0,
-            showLine: true,
-            order: isHighlighted ? 0 : 1 // Render highlighted player on top
-        };
-    });
-    datasets.push(...allPlayersData);
+    const binSize = careerData.game_bin_size || 20;
 
-    // Create the new chart
+    // 1. Add all individual player lines (unless in aggregate-only view)
+    if (!showAggregateOnly) {
+        const allPlayersData = Object.entries(careerData.players).map(([id, data]) => ({
+            data: data.map(d => ({ x: d[xAxis] === 'age' ? d.age : d.x_games, y: d[stat] })),
+            borderColor: 'rgba(128, 128, 128, 0.1)', borderWidth: 1, pointRadius: 0
+        }));
+        datasets.push(...allPlayersData);
+    }
+
+    // 2. Add the highlighted player line (always on top)
+    if (highlightedPlayerId && careerData.players[highlightedPlayerId]) {
+        datasets.push({
+            label: playerProfile.playerName,
+            data: careerData.players[highlightedPlayerId].map(d => ({ x: d[xAxis] === 'age' ? d.age : d.x_games, y: d[stat] })),
+            borderColor: 'var(--warning-color)', borderWidth: 2.5, pointRadius: 0, order: -1 
+        });
+    }
+
+    // 3. Add toggleable aggregate lines
+    if (showPositionAvg && playerProfile?.position && careerData.by_position?.[playerProfile.position]) {
+        datasets.push({
+            label: `Avg. Position: ${playerProfile.position}`,
+            data: careerData.by_position[playerProfile.position].map(d => ({ x: d[xAxis] === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })),
+            borderColor: 'var(--success-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0
+        });
+    }
+    if (showYearAvg && playerProfile?.draft_year && careerData.by_draft_year?.[playerProfile.draft_year]) {
+        datasets.push({
+            label: `Avg. Draft Year: ${playerProfile.draft_year}`,
+            data: careerData.by_draft_year[playerProfile.draft_year].map(d => ({ x: d[xAxis] === 'age' ? d.age : d.game_bin * bin_size, y: d[stat] })),
+            borderColor: 'var(--danger-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0
+        });
+    }
+    
     careerChartInstance = new Chart(ctx, {
         type: 'line',
         data: { datasets },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: false,
-            parsing: false,
+            responsive: true, maintainAspectRatio: false, animation: false,
             plugins: {
-                legend: { display: false }, // Simplest legend to avoid errors
-                decimation: { enabled: true, algorithm: 'lttb', samples: 200 },
-                tooltip: { enabled: false }
+                legend: { labels: { color: 'var(--text-primary)', filter: item => item.label } }, // Only show labels for named lines
+                tooltip: { enabled: true }
             },
             scales: {
-                x: { type: 'linear', title: { display: true, text: xAxis === 'age' ? 'Player Age' : 'NBA Games Played' } },
-                y: { title: { display: true, text: `Monthly Average ${stat}` } }
+                x: { type: 'linear', title: { display: true, text: xAxis === 'age' ? 'Player Age' : 'NBA Games Played', color: 'var(--text-secondary)'}, ticks: {color: 'var(--text-secondary)'} },
+                y: { title: { display: true, text: `Monthly Average ${stat}`, color: 'var(--text-secondary)' }, ticks: {color: 'var(--text-secondary)'} }
             }
         }
     });
