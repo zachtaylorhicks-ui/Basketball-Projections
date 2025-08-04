@@ -464,11 +464,13 @@ function renderDailyGamesForDate(date) {
 
     container.innerHTML = games.map(game => {
         const [team1, team2] = game.projections;
+        // Inside renderDailyGamesForDate, inside the games.map loop...
         let scoreHTML = `Predicted: <strong>${team1.totalPoints}-${team2.totalPoints}</strong>`;
         if (game.grade?.isGraded) {
             const actual1 = Object.values(game.grade.gameSummary.actual)[0];
             const actual2 = Object.values(game.grade.gameSummary.actual)[1];
-            scoreHTML += ` | Actual: <strong class="actual-score">${actual1}-${actual2}</strong>`;
+            const winnerClass = game.grade.correctWinner ? 'prediction-correct' : 'prediction-incorrect';
+            scoreHTML += ` | Actual: <strong class="actual-score ${winnerClass}">${actual1}-${actual2}</strong>`;
         }
         
         const createCompactSummary = (teamData) => {
