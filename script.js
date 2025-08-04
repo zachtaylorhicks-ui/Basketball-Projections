@@ -404,10 +404,22 @@ function renderSeasonTableBody(showCount) {
             ${ALL_STAT_KEYS.map(key => {
                 const zKey = STAT_CONFIG[key].zKey;
                 const rawKey = key.replace('_impact', '');
-                const value = p[rawKey] || 0;
+                let value = p[rawKey] || 0;
                 const zValue = p[zKey] || 0;
-                const precision = key.includes('impact') ? 2 : (isTotalMode ? 0 : 1);
-                return `<td class="stat-cell ${getZClass(zValue)}"> <span class="stat-value">${value.toFixed(precision)}</span> <span class="z-score-value">${zValue.toFixed(2)}</span> </td>`;
+                let displayValue;
+
+                if (key === 'FG_impact') {
+                    const fg_pct = (p.FGA > 0) ? (p.FGM / p.FGA) : 0;
+                    displayValue = fg_pct.toFixed(3); // Display as .457
+                } else if (key === 'FT_impact') {
+                    const ft_pct = (p.FTA > 0) ? (p.FTM / p.FTA) : 0;
+                    displayValue = ft_pct.toFixed(3); // Display as .891
+                } else {
+                    const precision = key.includes('impact') ? 2 : (isTotalMode ? 0 : 1);
+                    displayValue = value.toFixed(precision);
+                }
+
+                return `<td class="stat-cell ${getZClass(zValue)}"> <span class="stat-value">${displayValue}</span> <span class="z-score-value">${zValue.toFixed(2)}</span> </td>`;
             }).join('')}
             <td>${p.custom_z_score.toFixed(2)}</td>
         </tr>`
