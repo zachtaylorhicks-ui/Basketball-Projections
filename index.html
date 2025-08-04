@@ -159,6 +159,35 @@
                         <input type="text" id="career-search-player" placeholder="e.g., LeBron James">
                     </div>
                 </div>
+                <!-- NEW CONTROLS FOR CAREER ANALYSIS -->
+                <div class="bottom-controls" style="margin-top: 20px; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <p class="weights-title"><strong>Display Options:</strong></p>
+                        <div id="career-chart-toggles" style="display: flex; flex-wrap: wrap; gap: 15px;">
+                            <div class="chart-toggle">
+                                <span class="chart-toggle-label">Aggregate View</span>
+                                <label class="chart-toggle-switch">
+                                    <input type="checkbox" id="career-aggregate-toggle">
+                                    <span class="chart-toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="chart-toggle">
+                                <span class="chart-toggle-label">Avg. by Position</span>
+                                <label class="chart-toggle-switch">
+                                    <input type="checkbox" id="career-pos-toggle">
+                                    <span class="chart-toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="chart-toggle">
+                                <span class="chart-toggle-label">Avg. by Draft Year</span>
+                                <label class="chart-toggle-switch">
+                                    <input type="checkbox" id="career-year-toggle">
+                                    <span class="chart-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div id="career-chart-wrapper" class="card">
                 <canvas id="career-chart"></canvas>
@@ -175,6 +204,6 @@
         <p>© 2024 Advanced NBA Fantasy Projections. All Rights Reserved.</p>
     </footer>
 
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
 </body>
 </html>
