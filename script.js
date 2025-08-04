@@ -614,11 +614,18 @@ function initializeCareerAnalysisTab() {
 
 async function renderCareerChart() {
     const chartWrapper = document.getElementById("career-chart-wrapper");
-    if (careerChartInstance) careerChartInstance.destroy();
+    // Clear previous chart instance if it exists
+    if (careerChartInstance) {
+        careerChartInstance.destroy();
+    }
     chartWrapper.innerHTML = '<canvas id="career-chart"></canvas>';
     const ctx = document.getElementById('career-chart')?.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error("Could not get chart context.");
+        return;
+    }
 
+    // Fetch the career data
     const careerData = await fetchSeasonData('career_data');
     if (!careerData || !careerData.players) {
         chartWrapper.innerHTML = `<p class="error-cell">Could not load career analysis data.</p>`;
@@ -631,14 +638,16 @@ async function renderCareerChart() {
     
     let highlightedPlayerId = null;
     if (searchTerm) {
-        // Use a safer find method that won't crash if playerName is missing
         const entry = Object.entries(fullData.playerProfiles).find(([id, profile]) => 
             profile && profile.playerName && profile.playerName.toLowerCase().includes(searchTerm)
         );
-        if (entry) highlightedPlayerId = parseInt(entry[0], 10);
+        if (entry) {
+            highlightedPlayerId = parseInt(entry[0], 10);
+        }
     }
     
     const datasets = [];
+    // Plot all players as a light grey background
     const allPlayersData = Object.entries(careerData.players).map(([id, data]) => {
         const isHighlighted = parseInt(id) === highlightedPlayerId;
         return {
@@ -648,21 +657,22 @@ async function renderCareerChart() {
             borderWidth: isHighlighted ? 2.5 : 1,
             pointRadius: 0,
             showLine: true,
-            order: isHighlighted ? 0 : 1
+            order: isHighlighted ? 0 : 1 // Render highlighted player on top
         };
     });
     datasets.push(...allPlayersData);
-    
-    // This section is removed as it was complex and could cause errors.
-    // The main chart functionality remains.
 
+    // Create the new chart
     careerChartInstance = new Chart(ctx, {
         type: 'line',
         data: { datasets },
         options: {
-            responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            parsing: false,
             plugins: {
-                legend: { labels: { filter: item => item.label.startsWith('Avg.') } }, // Simplified legend
+                legend: { display: false }, // Simplest legend to avoid errors
                 decimation: { enabled: true, algorithm: 'lttb', samples: 200 },
                 tooltip: { enabled: false }
             },
