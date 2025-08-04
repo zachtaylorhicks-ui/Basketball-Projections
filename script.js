@@ -12,7 +12,7 @@ const STAT_CONFIG = {
     PTS: { name: "PTS", zKey: "z_PTS" }, REB: { name: "REB", zKey: "z_REB" }, AST: { name: "AST", zKey: "z_AST" }, STL: { name: "STL", zKey: "z_STL" }, BLK: { name: "BLK", zKey: "z_BLK" }, '3PM': { name: "3PM", zKey: "z_3PM" }, TOV: { name: "TOV", zKey: "z_TOV" }, FG_impact: { name: "FG%", zKey: "z_FG_impact" }, FT_impact: { name: "FT%", zKey: "z_FT_impact" }
 };
 const ALL_STAT_KEYS = ["PTS", "REB", "AST", "STL", "BLK", "3PM", "TOV", "FG_impact", "FT_impact"];
-const TEAM_ANALYSIS_STATS = ["GP", "MPG", "PTS", "REB", "AST"];
+const TEAM_ANALYSIS_STATS = ["GP", "MIN", "PTS", "REB", "AST"];
 
 // --- INITIALIZATION ---
 document.addEventListener("DOMContentLoaded", async () => {
@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     } catch (e) {
         console.error("FATAL: Failed to initialize application.", e);
-        document.body.innerHTML = `<div style="text-align:center; padding: 50px; font-size:1.2em;">Error: Could not load core application data. Please check the browser console (F12) for details. The "predictions.json" file may be missing or corrupt.<br><br><i>${e.message}</i></div>`;
+        document.body.innerHTML = `<div style="text-align:center; padding: 50px; font-size:1.2em;">Error: Could not load core application data. Please check the browser console (F12) for details. The 'predictions.json' file may be missing or corrupt.<br><br><i>${e.message}</i></div>`;
     }
 });
 
@@ -74,11 +74,10 @@ function handleGlobalClicks(e) {
     if (playerLink) {
         e.preventDefault();
         const personId = parseInt(playerLink.dataset.personId, 10);
-        // FIX: Check for profile existence before showing overlay
         if (fullData.playerProfiles && fullData.playerProfiles[personId]) {
             showPlayerProfileOverlay(fullData.playerProfiles[personId], personId);
         } else {
-            console.warn(`No profile found for personId: ${personId}. This is expected for some historical players.`);
+            console.warn(`No profile found for personId: ${personId}.`);
         }
         return;
     }
@@ -90,8 +89,6 @@ function handleGlobalClicks(e) {
     }
 }
 
-
-// --- PLAYER PROFILE MODAL ---
 async function showPlayerProfileOverlay(profile, personId) {
     const overlay = document.getElementById("player-profile-overlay");
     overlay.innerHTML = buildPlayerProfileModalHTML(profile);
@@ -295,12 +292,7 @@ function initializeSeasonTab() {
         if (!sourcesBySeason[year].some(s => s.key === sourceObject.key)) { sourcesBySeason[year].push(sourceObject); }
     }
 
-    const sortedSeasons = Object.keys(sourcesBySeason).sort((a, b) => {
-        if (a.includes('proj')) return -1;
-        if (b.includes('proj')) return 1;
-        return b.localeCompare(a);
-    });
-
+    const sortedSeasons = Object.keys(sourcesBySeason).sort((a, b) => a.includes('proj') ? -1 : b.includes('proj') ? 1 : b.localeCompare(a));
     seasonSelector.innerHTML = sortedSeasons.map(year => {
         const repSource = sourcesBySeason[year].find(s => s.split === 'full' || s.split === 'projections');
         const label = repSource ? repSource.label.match(/(\d{4}-\d{2})|(\d{4}-\d{2}\s\w+)|(Projections)/)[0] : year;
@@ -341,25 +333,23 @@ async function renderSeasonTable() {
     let data = await fetchSeasonData(sourceKey);
     if (!data) { tbody.innerHTML = `<tr><td colspan="17" class="error-cell">Could not load data for '${sourceKey}.json'.</td></tr>`; return; }
     
-    // FIX [Z-Score Philosophy]: Re-calculate the displayed Total based ONLY on the sum of z-scores for active categories.
-    let processedData = data.map(player => {
-        const pg_z_score = Array.from(settings.activeCategories).reduce((acc, catKey) => acc + (player[STAT_CONFIG[catKey].zKey] || 0), 0)
-        return {
-            ...player,
-            custom_z_score_display: pg_z_score
-        }
-    });
+    // FIX [Z-Score Philosophy]: Recalculate the displayed Total based on punts.
+    let processedData = data.map(player => ({
+        ...player,
+        // The final displayed score is the unweighted sum of activated categories.
+        custom_z_score_display: Array.from(settings.activeCategories).reduce((acc, catKey) => acc + (player[STAT_CONFIG[catKey].zKey] || 0), 0)
+    }));
     
-    // Always sort by the full, unpunted value for consistency, but display the punted value.
-    currentSort.column = 'custom_z_score'; 
-    currentSort.direction = 'desc';
-
     if (settings.searchTerm) {
         processedData = processedData.filter(p => p.playerName?.toLowerCase().includes(settings.searchTerm));
     }
 
     currentSort.data = processedData;
-    sortSeasonData(); // Sorts based on currentSort state
+    // Set sorting to the displayed Z-score by default for Tab 1
+    currentSort.column = 'custom_z_score_display';
+    currentSort.direction = 'desc';
+    
+    sortSeasonData();
     renderSeasonTableBody(settings.showCount);
 }
 
@@ -372,7 +362,6 @@ function handleSortSeason(e) {
         currentSort.direction = currentSort.direction === "desc" ? "asc" : "desc";
     } else {
         currentSort.column = sortKey;
-        // Default sort direction
         currentSort.direction = ["playerName", "position", "team"].includes(sortKey) ? "asc" : "desc";
     }
     sortSeasonData();
@@ -383,6 +372,7 @@ function sortSeasonData() {
     const { column, direction, data } = currentSort;
     if (!data) return;
     const mod = direction === "asc" ? 1 : -1;
+    // Use 'custom_z_score_display' for the total column, otherwise the specific key
     const sortKey = column === 'custom_z_score' ? 'custom_z_score_display' : column;
     
     data.sort((a, b) => {
@@ -395,7 +385,10 @@ function sortSeasonData() {
 
 function renderSeasonTableBody(showCount) {
     const thead = document.getElementById("predictions-thead");
-    thead.innerHTML = `<tr><th>R#</th><th data-sort-key="playerName">Player</th><th data-sort-key="position">Pos</th><th data-sort-key="team">Team</th><th data-sort-key="GP">GP</th><th data-sort-key="MIN">MPG</th>${ALL_STAT_KEYS.map(k=>`<th data-sort-key="${k.replace(/_impact/g, '')}">${STAT_CONFIG[k].name}</th>`).join('')}<th data-sort-key="custom_z_score">TOTAL▼</th></tr>`;
+    // Update the sorting keys in the HTML table header to match the JS keys
+    thead.innerHTML = `<tr><th>R#</th><th data-sort-key="playerName">Player</th><th data-sort-key="position">Pos</th><th data-sort-key="team">Team</th><th data-sort-key="GP">GP</th><th data-sort-key="MIN">MPG</th>${ALL_STAT_KEYS.map(k=>`<th data-sort-key="${STAT_CONFIG[k].zKey}">${STAT_CONFIG[k].name}</th>`).join('')}<th data-sort-key="custom_z_score">TOTAL▼</th></tr>`;
+
+    // Highlight the currently sorted column
     document.querySelectorAll('#predictions-thead th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
     const currentTh = thead.querySelector(`[data-sort-key="${currentSort.column}"]`);
     if(currentTh) currentTh.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
@@ -408,9 +401,11 @@ function renderSeasonTableBody(showCount) {
     const isTotalMode = document.getElementById("calculation-mode").value === 'total';
     
     tbody.innerHTML = dataToRender.map((p, i) => {
-        const mpg = p.MIN || 0;
         const gp = p.GP || 1;
-        
+        // Check if MIN is total minutes (avg > 100) and if we should display per-game or total
+        const mpg = p.MIN || 0;
+        const displayedMpg = (isTotalMode && mpg > 100) ? (mpg / gp) : mpg;
+
         return `
         <tr>
             <td>${i + 1}</td>
@@ -418,7 +413,7 @@ function renderSeasonTableBody(showCount) {
             <td>${p.position || 'N/A'}</td>
             <td>${p.team || 'N/A'}</td>
             <td>${gp}</td>
-            <td>${(isTotalMode ? mpg / gp : mpg).toFixed(1)}</td>
+            <td>${displayedMpg.toFixed(1)}</td>
 
             ${ALL_STAT_KEYS.map(key => {
                 const zKey = STAT_CONFIG[key].zKey;
@@ -428,11 +423,15 @@ function renderSeasonTableBody(showCount) {
                 const value = p[rawKey] || 0;
 
                 if (key.includes('_impact')) {
+                    // Use FGM/A or FT/A if they exist, otherwise use the stored percentage
                     const made = key === 'FG_impact' ? p.FGM : p.FTM;
                     const att = key === 'FG_impact' ? p.FGA : p.FTA;
-                    displayValue = att > 0 ? (made / att).toFixed(3) : (p[key === 'FG_impact' ? 'FG_pct' : 'FT_pct'] || 0).toFixed(3);
+                    const pctKey = key === 'FG_impact' ? 'FG_pct' : 'FT_pct';
+                    displayValue = p[att] !== undefined && att > 0 ? (made / att).toFixed(3) : (p[pctKey] || 0).toFixed(3);
                 } else {
-                    displayValue = (isTotalMode ? value : value / gp).toFixed(isTotalMode ? 0 : 1);
+                    // Display the stat. If total mode, it's already a total. 
+                    // If per-game mode, it's already per-game.
+                    displayValue = value.toFixed(isTotalMode ? 0 : 1);
                 }
                 
                 return `<td class="stat-cell ${getZClass(zValue)}"><span class="stat-value">${displayValue}</span><span class="z-score-value">${zValue.toFixed(2)}</span></td>`;
@@ -441,6 +440,7 @@ function renderSeasonTableBody(showCount) {
         </tr>`
     }).join('');
 }
+
 
 // --- DAILY PROJECTIONS TAB ---
 function initializeDailyTab() {
@@ -504,13 +504,7 @@ function createTeamTableHTML(teamData, gameGrade) {
         const pId = p.personId || p.Player_ID, actuals = isGraded ? gameGrade.playerActuals?.[pId] : null;
         const nameHtml = `<a href="#" class="player-link" data-person-id="${pId}">${p.Player_Name}</a>`;
         const predRow = `<tr class="player-row-pred"><td rowspan="${isGraded ? 2 : 1}" class="player-name-cell">${nameHtml}</td><td class="stat-type-cell">P</td><td>${(p.Predicted_Minutes||0).toFixed(1)}</td><td>${(p.points||0).toFixed(1)}</td><td>${(p.reb||0).toFixed(1)}</td><td>${(p.ast||0).toFixed(1)}</td></tr>`;
-        const actualRow = isGraded && actuals ? `<tr class="player-row-actual">
-                <td class="stat-type-cell">A</td>
-                <td>-</td>
-                <td>${actuals.PTS.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.points, actuals.PTS)}"></span></td>
-                <td>${actuals.REB.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.reb, actuals.REB)}"></span></td>
-                <td>${actuals.AST.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.ast, actuals.AST)}"></span></td>
-            </tr>` : isGraded ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td colspan="4" style="text-align:center;">DNP</td></tr>` : '';
+        const actualRow = isGraded && actuals ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td>-</td><td>${actuals.PTS.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.points, actuals.PTS)}"></span></td><td>${actuals.REB.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.reb, actuals.REB)}"></span></td><td>${actuals.AST.toFixed(0)}<span class="performance-indicator ${getPerfIndicator(p.ast, actuals.AST)}"></span></td></tr>` : isGraded ? `<tr class="player-row-actual"><td class="stat-type-cell">A</td><td colspan="4" style="text-align:center;">DNP</td></tr>` : '';
         return predRow + actualRow;
     }).join('');
     return `<div class="team-box-score"><h3 class="team-header">${teamData.teamName}</h3><table class="daily-table"><thead><tr><th style="text-align:left;">Player</th><th></th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>${playersHtml}</tbody></table></div>`;
@@ -518,7 +512,7 @@ function createTeamTableHTML(teamData, gameGrade) {
 
 function renderAccuracyChart() {
     const container = document.getElementById("accuracy-chart-container");
-    if(!container) return;
+    if (!container) return;
     const chartCanvas = document.getElementById('accuracy-chart');
     if (!chartCanvas || !fullData.historicalGrades || fullData.historicalGrades.length < 1) { container.style.display = 'none'; return; }
     container.style.display = 'block';
@@ -530,4 +524,155 @@ function renderAccuracyChart() {
         case 'cumulativeWinLoss':
             let wins = 0, total = 0;
             const cumulativeData = sortedDates.map(date => { wins += gradesByDate[date].reduce((s, g) => s + g.correctWinner, 0); total += gradesByDate[date].length; return { x: new Date(date), y: total > 0 ? (wins / total) * 100 : 0 }; });
-            chartConfig = { type: 'line', data: { datasets: [{ label: 'Cumulative W/L %', data: cumulativeData, borderColor: 'var
+            chartConfig = { type: 'line', data: { datasets: [{ label: 'Cumulative W/L %', data: cumulativeData, borderColor: 'var(--primary-color)', backgroundColor: 'var(--primary-color)' }] }, options: { scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } }, x: { type: 'time', time: { unit: 'day' } } } } };
+            break;
+        case 'dailyWinLoss':
+            const dailyData = sortedDates.map(date => (gradesByDate[date].reduce((s, g) => s + g.correctWinner, 0) / gradesByDate[date].length) * 100);
+            chartConfig = { type: 'bar', data: { labels: sortedDates.map(d => new Date(d + "T00:00:00").toLocaleDateString('en-US', { month: 'short', day: 'numeric' })), datasets: [{ label: 'Daily W/L Accuracy', data: dailyData, backgroundColor: 'var(--primary-color)' }] }, options: { scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } } } };
+            break;
+        default:
+            const barData = sortedDates.map(date => { const values = gradesByDate[date].map(g => metric === 'scoreCloseness' ? g.scoreCloseness : g.statErrors[metric]).filter(v => v !== undefined); return values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0; });
+            chartConfig = { type: 'bar', data: { labels: sortedDates.map(d => new Date(d + "T00:00:00").toLocaleDateString('en-US', { month: 'short', day: 'numeric' })), datasets: [{ label: `Avg Daily ${metric}`, data: barData, backgroundColor: 'var(--primary-color)' }] } };
+    }
+    if (accuracyChartInstance) accuracyChartInstance.destroy();
+    accuracyChartInstance = new Chart(ctx, { ...chartConfig, options: { ...chartConfig.options, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+}
+
+
+// --- TEAM ANALYSIS TAB ---
+function initializeTeamAnalysisTab() {
+    const selector = document.getElementById("team-analysis-source-selector");
+    const manifest = fullData.seasonLongDataManifest || {};
+    const sources = Object.keys(manifest).filter(key => key.endsWith('_per_game')).sort((a, b) => b.localeCompare(a));
+    selector.innerHTML = sources.map(key => `<option value="${key}">${manifest[key].label}</option>`).join('');
+    selector.addEventListener('change', renderTeamAnalysis);
+    renderTeamAnalysis();
+}
+
+async function renderTeamAnalysis() {
+    const container = document.getElementById("team-analysis-container");
+    container.innerHTML = '<div class="card"><p>Loading team data...</p></div>';
+    const sourceKey = document.getElementById("team-analysis-source-selector").value;
+    const data = await fetchSeasonData(sourceKey);
+    if (!data) { container.innerHTML = '<div class="card"><p class="error-cell">Could not load data for this source.</p></div>'; return; }
+    
+    const teams = data.reduce((acc, p) => { (acc[p.team || 'FA'] = acc[p.team || 'FA'] || []).push(p); return acc; }, {});
+    
+    container.innerHTML = Object.entries(teams).sort(([teamA], [teamB]) => {
+        if (teamA === 'FA') return 1; if (teamB === 'FA') return -1;
+        const strengthA = teams[teamA].reduce((s, p) => s + (p.custom_z_score || 0), 0);
+        const strengthB = teams[teamB].reduce((s, p) => s + (p.custom_z_score || 0), 0);
+        return strengthB - strengthA;
+    }).map(([teamName, players]) => {
+        const teamStrength = players.reduce((sum, p) => sum + (p.custom_z_score || 0), 0);
+        const playerRows = players.sort((a, b) => (b.custom_z_score || 0) - (a.custom_z_score || 0)).map(p => {
+            // FIX [Team Analysis]: Correctly display MPG instead of MIN
+            const mpg = p.MIN || 0;
+            return `<tr><td><a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName}</a></td><td>${(p.GP||0).toFixed(0)}</td><td>${mpg.toFixed(1)}</td><td>${(p.PTS||0).toFixed(1)}</td><td>${(p.REB||0).toFixed(1)}</td><td>${(p.AST||0).toFixed(1)}</td><td>${(p.custom_z_score||0).toFixed(2)}</td></tr>`;
+        }).join('');
+
+        return `
+            <div class="team-card">
+                <div class="team-card-header"><h3>${teamName === 'FA' ? 'Free Agents' : teamName}</h3><div class="team-strength-score">${teamStrength.toFixed(2)}</div></div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Player</th><th>GP</th><th>MPG</th><th>PTS</th><th>REB</th><th>AST</th><th>Z-Score</th></tr></thead>
+                        <tbody>${playerRows}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+// --- PLAYER PROGRESSION TAB ---
+async function initializePlayerProgressionTab() {
+    const container = document.getElementById("player-progression-container");
+    container.innerHTML = '<div class="card" style="padding:20px; text-align:center;">Loading...</div>';
+    const futureData = await fetchSeasonData('progression');
+    const historicalData = await fetchSeasonData('progression_historical');
+    if (!futureData && !historicalData) { container.innerHTML = '<div class="card"><p class="error-cell">Could not load progression data.</p></div>'; return; }
+    let html = '';
+    if (futureData) {
+        html += createProgressionTable('Top Risers (vs. \'26 Proj.)', [...futureData].sort((a,b)=>b.z_Change-a.z_Change).slice(0,15), "'25 Z","'26 Proj. Z", "z_Total_2024", "z_Total_2025_Proj");
+        html += createProgressionTable('Top Fallers (vs. \'26 Proj.)', [...futureData].sort((a,b)=>a.z_Change-b.z_Change).slice(0,15), "'25 Z","'26 Proj. Z", "z_Total_2024", "z_Total_2025_Proj");
+    }
+    if (historicalData) {
+        html += createProgressionTable('Top Risers (\'24 vs \'25)', [...historicalData].sort((a,b)=>b.z_Change-a.z_Change).slice(0,15), "'24 Z","'25 Z", "z_Total_2023", "z_Total_2024");
+        html += createProgressionTable('Top Fallers (\'24 vs \'25)', [...historicalData].sort((a,b)=>a.z_Change-b.z_Change).slice(0,15), "'24 Z","'25 Z", "z_Total_2023", "z_Total_2024");
+    }
+    container.innerHTML = html;
+}
+function createProgressionTable(title, players, th1, th2, key1, key2) {
+    const rows = players.map(p => `<tr><td><a href="#" class="player-link" data-person-id="${p.personId}">${p.playerName}</a></td><td>${p.team}</td><td>${(p[key1]||0).toFixed(2)}</td><td>${(p[key2]||0).toFixed(2)}</td><td class="${p.z_Change>=0?'text-success':'text-danger'}">${p.z_Change>=0?'+':''}${(p.z_Change||0).toFixed(2)}</td></tr>`).join('');
+    return `<div class="card"><h3>${title}</h3><div class="table-container"><table><thead><tr><th>Player</th><th>Team</th><th>${th1}</th><th>${th2}</th><th>Change</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+// --- CAREER ANALYSIS TAB ---
+function initializeCareerAnalysisTab() {
+    const controls = document.getElementById("career-controls");
+    controls?.addEventListener('change', renderCareerChart);
+    controls?.querySelector('#career-search-player').addEventListener('input', renderCareerChart);
+    renderCareerChart();
+}
+
+async function renderCareerChart() {
+    const chartWrapper = document.getElementById("career-chart-wrapper");
+    if (careerChartInstance) careerChartInstance.destroy();
+    chartWrapper.innerHTML = '<canvas id="career-chart"></canvas>';
+    const ctx = document.getElementById('career-chart')?.getContext('2d');
+    if (!ctx) return;
+
+    const careerData = await fetchSeasonData('career_data');
+    if (!careerData || !careerData.players) { chartWrapper.innerHTML = `<p class="error-cell">Could not load career analysis data.</p>`; return; }
+
+    const stat = document.getElementById("career-stat-selector").value;
+    const xAxis = document.getElementById("career-xaxis-selector").value;
+    const searchTerm = document.getElementById("career-search-player").value.toLowerCase().trim();
+    
+    let highlightedPlayerId = null;
+    if (searchTerm) {
+        const entry = Object.entries(fullData.playerProfiles).find(([id, profile]) => profile.playerName?.toLowerCase().includes(searchTerm));
+        if (entry) highlightedPlayerId = parseInt(entry[0], 10);
+    }
+    
+    const datasets = [];
+    const allPlayersData = Object.entries(careerData.players).map(([id, data]) => {
+        const isHighlighted = parseInt(id) === highlightedPlayerId;
+        return { label: `Player ${id}`, data: data.map(d => ({ x: d[xAxis], y: d[stat] })), borderColor: isHighlighted ? 'var(--warning-color)' : 'rgba(128, 128, 128, 0.1)', borderWidth: isHighlighted ? 2.5 : 1, pointRadius: 0, showLine: true, order: isHighlighted ? 0 : 1 };
+    });
+    datasets.push(...allPlayersData);
+
+    if (highlightedPlayerId && fullData.playerProfiles[highlightedPlayerId]) {
+        const playerProfile = fullData.playerProfiles[highlightedPlayerId];
+        const draftInfoStr = playerProfile.draftInfo || '';
+        const draftYearMatch = draftInfoStr.match(/(\d{4})/);
+        const draftPickMatch = draftInfoStr.match(/P(\d+)/);
+        const draftYear = draftYearMatch ? parseInt(draftYearMatch[1]) : null;
+        const draftNumber = draftPickMatch ? parseInt(draftPickMatch[1]) : null;
+        const binSize = careerData.game_bin_size || 20;
+
+        if (draftYear && careerData.by_year && careerData.by_year[draftYear]) {
+            datasets.push({ label: `Avg. Draft Year ${draftYear}`, data: careerData.by_year[draftYear].map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), borderColor: 'var(--success-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 2 });
+        }
+        if (draftNumber && careerData.by_pick && careerData.by_pick[draftNumber]) {
+            datasets.push({ label: `Avg. Draft Pick #${draftNumber}`, data: careerData.by_pick[draftNumber].map(d => ({ x: xAxis === 'age' ? d.age : d.game_bin * binSize, y: d[stat] })), borderColor: 'var(--danger-color)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, showLine: true, order: 3 });
+        }
+    }
+    
+    careerChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+            plugins: {
+                legend: { labels: { filter: item => !item.label.startsWith('Player') } },
+                decimation: { enabled: true, algorithm: 'lttb', samples: 200 },
+                tooltip: { enabled: false }
+            },
+            scales: {
+                x: { type: 'linear', title: { display: true, text: xAxis === 'age' ? 'Player Age' : 'NBA Games Played' } },
+                y: { title: { display: true, text: `Monthly Average ${stat}` } }
+            }
+        }
+    });
+}
