@@ -396,17 +396,36 @@ function sortSeasonData() {
     });
 }
 
+// REPLACE this entire function in script.js
 function renderSeasonTableBody(showCount) {
     const thead = document.getElementById("predictions-thead");
-    thead.innerHTML = `<tr><th>R#</th><th data-sort-key="playerName">Player</th><th data-sort-key="position">Pos</th><th data-sort-key="team">Team</th><th data-sort-key="GP">GP</th><th data-sort-key="MIN">MIN/MPG</th>${ALL_STAT_KEYS.map(k=>`<th data-sort-key="${STAT_CONFIG[k].zKey}">${STAT_CONFIG[k].name}</th>`).join('')}<th data-sort-key="custom_z_score">TOTAL</th></tr>`;
+    const isTotalMode = document.getElementById("calculation-mode").value === 'total';
+
+    // Dynamically build the header HTML
+    let headerHTML = `<tr><th>R#</th><th data-sort-key="playerName">Player</th><th data-sort-key="position">Pos</th><th data-sort-key="team">Team</th><th data-sort-key="GP">GP</th><th data-sort-key="MIN">MIN/MPG</th>`;
+    ALL_STAT_KEYS.forEach(key => {
+        let headerName = STAT_CONFIG[key].name;
+        // THIS IS THE FIX: Change header name for totals mode
+        if (isTotalMode) {
+            if (key === 'FG_impact') headerName = 'FGM/A';
+            if (key === 'FT_impact') headerName = 'FTM/A';
+        }
+        headerHTML += `<th data-sort-key="${STAT_CONFIG[key].zKey}">${headerName}</th>`;
+    });
+    headerHTML += `<th data-sort-key="custom_z_score">TOTAL</th></tr>`;
+    thead.innerHTML = headerHTML;
+
+    // Highlight the sorted column
     document.querySelectorAll('#predictions-thead th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
     const currentTh = thead.querySelector(`[data-sort-key="${currentSort.column}"]`);
     if(currentTh) currentTh.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+
     const tbody = document.getElementById("predictions-tbody");
     const dataToRender = currentSort.data?.slice(0, showCount) || [];
     if (!dataToRender.length) { tbody.innerHTML = `<tr><td colspan="17" class="error-cell">No players match criteria.</td></tr>`; return; }
+    
     const getZClass = z => z >= 1.5 ? 'elite' : z >= 1.0 ? 'very-good' : z >= 0.5 ? 'good' : z <= -1.0 ? 'not-good' : z <= -0.5 ? 'below-average' : 'average';
-    const isTotalMode = document.getElementById("calculation-mode").value === 'total';
+    
     tbody.innerHTML = dataToRender.map((p, i) => {
         return `
         <tr>
@@ -420,14 +439,23 @@ function renderSeasonTableBody(showCount) {
                 const zKey = STAT_CONFIG[key].zKey;
                 const zValue = p[zKey] || 0;
                 let displayValue;
+                
+                // THIS IS THE FIX: Logic for displaying values in each mode
                 if (isTotalMode) {
-                    if (key === 'FG_impact') { displayValue = `${(p.FGM || 0).toFixed(0)}/${(p.FGA || 0).toFixed(0)}`; }
-                    else if (key === 'FT_impact') { displayValue = `${(p.FTM || 0).toFixed(0)}/${(p.FTA || 0).toFixed(0)}`; }
-                    else { const rawKey = key.replace('_impact', ''); displayValue = (p[rawKey] || 0).toFixed(0); }
-                } else {
+                    if (key === 'FG_impact') { displayValue = `${Math.round(p.FGM || 0)}/${Math.round(p.FGA || 0)}`; }
+                    else if (key === 'FT_impact') { displayValue = `${Math.round(p.FTM || 0)}/${Math.round(p.FTA || 0)}`; }
+                    else {
+                        const rawKey = key.replace('_impact', '');
+                        // Ensure we never display a negative number for a raw counting stat
+                        displayValue = Math.round(Math.max(0, p[rawKey] || 0));
+                    }
+                } else { // Per Game Mode
                     if (key === 'FG_impact') { displayValue = p.FGA > 0 ? (p.FGM / p.FGA).toFixed(3) : '0.000'; }
                     else if (key === 'FT_impact') { displayValue = p.FTA > 0 ? (p.FTM / p.FTA).toFixed(3) : '0.000'; }
-                    else { const rawKey = key.replace('_impact', ''); displayValue = (p[rawKey] || 0).toFixed(1); }
+                    else {
+                        const rawKey = key.replace('_impact', '');
+                        displayValue = (p[rawKey] || 0).toFixed(1);
+                    }
                 }
                 return `<td class="stat-cell ${getZClass(zValue)}"><span class="stat-value">${displayValue}</span><span class="z-score-value">${zValue.toFixed(2)}</span></td>`;
             }).join('')}
@@ -463,6 +491,7 @@ function initializeDailyTab() {
     renderDailyGamesForDate(sortedDates[0]);
 }
 
+// REPLACE this entire function in script.js
 function renderDailyGamesForDate(date) {
     const container = document.getElementById("daily-games-container");
     const games = fullData.dailyGamesByDate?.[date] || [];
@@ -474,17 +503,25 @@ function renderDailyGamesForDate(date) {
 
     container.innerHTML = games.map(game => {
         const [team1, team2] = game.projections;
-        let scoreHTML = `Predicted: <strong>${team1.totalPoints}-${team2.totalPoints}</strong>`;
+        
+        // THIS IS THE FIX: Round the predicted scores
+        const predictedScore1 = Math.round(team1.totalPoints);
+        const predictedScore2 = Math.round(team2.totalPoints);
+        let scoreHTML = `Predicted: <strong>${predictedScore1}-${predictedScore2}</strong>`;
+        
         if (game.grade?.isGraded) {
-            const actual1 = Object.values(game.grade.gameSummary.actual)[0];
-            const actual2 = Object.values(game.grade.gameSummary.actual)[1];
-            scoreHTML += ` | Actual: <strong class="actual-score ${game.grade.correctWinner ? 'prediction-correct' : 'prediction-incorrect'}">${actual1}-${actual2}</strong>`;
+            // Ensure actual scores are correctly retrieved regardless of team order
+            const actual1 = game.grade.gameSummary.actual[team1.teamName] ?? Object.values(game.grade.gameSummary.actual)[0];
+            const actual2 = game.grade.gameSummary.actual[team2.teamName] ?? Object.values(game.grade.gameSummary.actual)[1];
+            scoreHTML += ` <span class="actual-score ${game.grade.correctWinner ? 'prediction-correct' : 'prediction-incorrect'}">Actual: <strong>${actual1}-${actual2}</strong></span>`;
         }
+        
         const createCompactSummary = (teamData) => teamData.players.sort((a, b) => (b.MIN || 0) - (a.MIN || 0)).slice(0, 5).map(p => {
             const profile = fullData.playerProfiles[p.personId];
             const playerName = profile ? profile.playerName : '...';
             return `<div class="compact-player-badge ${getZClass((p.PTS-15)/8)}" title="${playerName} (Proj. ${p.PTS} pts)">${playerName.split(' ').pop()}</div>`;
         }).join('');
+
         return `
         <div class="matchup-card">
             <div class="matchup-header"><span class="matchup-teams">${team1.teamName} (${team1.winProb}%) vs ${team2.teamName} (${team2.winProb}%)</span><span class="matchup-scores">${scoreHTML}</span></div>
@@ -494,7 +531,6 @@ function renderDailyGamesForDate(date) {
         </div>`;
     }).join('');
 }
-
 function createTeamTableHTML(teamData, gameGrade) {
     const isGraded = gameGrade?.isGraded;
     const getPerfIndicator = (pred, actual) => {
